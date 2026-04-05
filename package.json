@@ -1,0 +1,11 @@
+{
+  "name": "customer-quote-management-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "手机/消费电子行业客户报价管理系统原型",
+  "scripts": {
+    "start": "node server/index.js",
+    "check:server": "node --check server/index.js",
+    "check:web": "node --check web/app.js"
+  }
+}

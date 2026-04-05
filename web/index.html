@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>客户报价管理系统</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="loginShell" class="login-shell">
+      <div class="language-switch language-switch-login">
+        <span class="hint">界面语言</span>
+        <div class="language-group">
+          <button class="btn language-btn" type="button" data-language="zh">中文</button>
+          <button class="btn language-btn" type="button" data-language="en">English</button>
+          <button class="btn language-btn" type="button" data-language="de">Deutsch</button>
+        </div>
+      </div>
+      <div class="login-layout">
+        <section class="login-panel">
+          <p class="eyebrow login-eyebrow">Account Login</p>
+          <h1>账号登录</h1>
+          <p class="hint">不同账号登录后，将自动进入对应的权限范围。</p>
+          <form id="loginForm" class="grid-form">
+            <label>登录账号<input id="loginUserName" autocomplete="username" /></label>
+            <label>登录密码<input id="loginPassword" type="password" autocomplete="current-password" /></label>
+          </form>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="loginBtn" type="button">登录系统</button>
+          </div>
+          <div id="loginAlert"></div>
+          <div class="detail-placeholder">
+            <strong>演示账号</strong>
+            <p class="hint">客户经理 `li.sales / Pass@123`，电商负责人 `wang.manager / Pass@123`，财务总监 `liu.finance / Pass@123`，超级管理员 `sun.admin / Admin@123`。</p>
+          </div>
+        </section>
+
+        <section class="login-panel">
+          <p class="eyebrow login-eyebrow">Account Request</p>
+          <h2>申请账号</h2>
+          <p class="hint">账号申请提交后，由管理员审批并生成登录账号。</p>
+          <form id="accountRequestForm" class="grid-form">
+            <label>申请人姓名<input id="requestDisplayName" /></label>
+            <label>申请账号<input id="requestUserName" /></label>
+            <label>申请角色
+              <select id="requestRole">
+                <option value="SALES_ENTRY">客户经理</option>
+                <option value="SALES_MANAGER">电商负责人</option>
+                <option value="BUSINESS_HEAD">总经理</option>
+                <option value="FINANCE_HEAD">财务总监</option>
+              </select>
+            </label>
+            <label>所属团队<input id="requestTeam" /></label>
+            <label class="full">申请原因<input id="requestReason" /></label>
+          </form>
+          <div class="toolbar">
+            <button class="btn btn-primary" id="submitAccountRequestBtn" type="button">提交账号申请</button>
+          </div>
+          <div id="accountRequestAlert"></div>
+        </section>
+      </div>
+    </div>
+
+    <div id="appShell" class="app-shell role-hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="eyebrow">Mobile / CE</p>
+          <h1>客户报价管理系统</h1>
+        </div>
+        <nav class="nav-list">
+          <button class="nav-item" data-page-target="quoteQueryPage">报价查询</button>
+          <button class="nav-item active" data-page-target="quoteCreatePage">报价生成</button>
+          <button class="nav-item" data-page-target="importPage">批量导入</button>
+          <button class="nav-item" data-page-target="formulaPage">公式管理</button>
+          <button class="nav-item" data-page-target="productPage">产品管理</button>
+          <button class="nav-item" data-page-target="customerPage">客户管理</button>
+          <button class="nav-item" data-page-target="approvalPage">审批中心</button>
+          <button class="nav-item" data-page-target="accountPage">账号管理</button>
+          <button class="nav-item" data-page-target="logPage">操作日志</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Quote Workflow</p>
+            <h2 id="pageTitle">报价生成</h2>
+          </div>
+          <div class="topbar-tools">
+            <div class="language-switch">
+              <span class="hint">界面语言</span>
+              <div class="language-group">
+                <button class="btn language-btn" type="button" data-language="zh">中文</button>
+                <button class="btn language-btn" type="button" data-language="en">English</button>
+                <button class="btn language-btn" type="button" data-language="de">Deutsch</button>
+              </div>
+            </div>
+            <div class="account-chip">
+              <span class="hint">当前登录账号</span>
+              <strong id="currentAccountName">未登录</strong>
+              <span id="currentAccountMeta" class="hint">请先登录</span>
+            </div>
+            <button class="btn" id="logoutBtn" type="button">退出登录</button>
+            <button class="btn" id="refreshAllBtn" type="button">刷新数据</button>
+          </div>
+        </header>
+
+        <section id="quoteQueryPage" class="page-section">
+          <div class="panel">
+            <h3>筛选条件</h3>
+            <form id="quoteQueryForm" class="grid-form">
+              <label class="full">批量查询关键词<textarea id="queryBatchKeywords" name="batch_keywords"></textarea></label>
+              <label>客户名称<select id="queryCustomerName" name="customer_name"></select></label>
+              <label>客户编码<select id="queryCustomerCode" name="customer_code"></select></label>
+              <label>SKU<select id="querySku" name="sku"></select></label>
+              <label>产品名称<select id="queryProductName" name="product_name"></select></label>
+              <label>产品系列<select id="queryProductSeries" name="product_series"></select></label>
+              <label>生效月份<select id="queryEffectiveMonth" name="effective_month"></select></label>
+              <label>报价状态<select id="queryQuoteStatus" name="quote_status"></select></label>
+              <label>审批状态<select id="queryApprovalStatus" name="approval_status"></select></label>
+              <label>公式版本<select id="queryFormulaVersion" name="formula_version"></select></label>
+            </form>
+            <div class="toolbar">
+              <button class="btn btn-primary" id="queryQuotesBtn" type="button">查询报价</button>
+              <button class="btn" id="downloadQuotesPriceSheetBtn" type="button">一键下载价格表</button>
+              <button class="btn" id="exportQuotesBtn" type="button">导出当前列表 CSV</button>
+            </div>
+            <div id="quoteQueryAlert"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>价格查询结果</h3>
+              <span id="quotesSummary" class="hint"></span>
+            </div>
+            <div class="table-wrap">
+              <table id="quotesTable">
+                <thead>
+                  <tr>
+                    <th>客户名称</th>
+                    <th>客户编码</th>
+                    <th>产品名称</th>
+                    <th>SKU</th>
+                    <th>产品系列</th>
+                    <th>最新零售价</th>
+                    <th data-permission-key="view_fob">最新 FOB</th>
+                    <th>最新报价</th>
+                    <th data-permission-key="view_gross_profit">毛利额</th>
+                    <th data-permission-key="view_gross_margin">毛利率</th>
+                    <th>生效月份</th>
+                    <th>审批状态</th>
+                    <th>报价状态</th>
+                    <th>更新时间</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="quoteCreatePage" class="page-section active">
+          <div class="split">
+            <div class="panel">
+              <h3>报价生成</h3>
+              <form id="quoteCreateForm" class="grid-form">
+                <label>客户<select id="quoteCustomerId" name="customer_id"></select></label>
+                <label>产品 SKU<select id="quoteProductId" name="product_id"></select></label>
+                <label>公式版本<select id="quoteFormulaId" name="formula_id"></select></label>
+                <label>生效月份<input id="quoteEffectiveMonth" name="effective_month" placeholder="YYYY-MM" /></label>
+                <label>RRP<input id="quoteMsrp" name="msrp" type="number" step="0.01" /></label>
+                <label data-permission-key="view_fob">成本价 / FOB<input id="quoteCostPrice" name="cost_price" type="number" step="0.01" /></label>
+                <label>DB (F)<input id="quoteDbRate" name="db_rate" type="number" step="0.0001" /></label>
+                <label>客户Margin (G)<input id="quoteCustomerMargin" name="customer_margin" type="number" step="0.0001" /></label>
+                <label>Service Fee (H)<input id="quoteServiceFee" name="service_fee" type="number" step="0.0001" /></label>
+                <label>联合营销 / MKT Funding<input id="quoteMktFunding" name="mkt_funding" type="number" step="0.01" /></label>
+                <label>STKbuffer (I)<input id="quoteStkBuffer" name="stk_buffer" type="number" step="0.01" /></label>
+                <label>联合营销占比<input id="quoteMktFundingRate" name="mkt_funding_rate" type="text" readonly /></label>
+                <label>Front Margin (J)<input id="quoteFrontMargin" name="front_margin" type="number" step="0.0001" /></label>
+                <label>VAT (K)<input id="quoteVat" name="vat" type="number" step="0.0001" value="0.2" /></label>
+                <label>URA (L)<input id="quoteUra" name="ura" type="number" step="0.01" value="0" /></label>
+                <label class="full">备注<input id="quoteRemark" name="remark" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn" id="previewQuoteBtn" type="button">实时试算</button>
+                <button class="btn btn-primary" id="createQuoteBtn" type="button">生成报价并发起审批</button>
+              </div>
+              <div class="toolbar quote-batch-toolbar">
+                <button class="btn" id="createQuotesByProductBtn" type="button">当前产品生成各客户报价</button>
+                <button class="btn" id="createQuotesByCustomerBtn" type="button">当前客户生成各产品报价</button>
+              </div>
+              <div id="quoteCreateAlert"></div>
+            </div>
+
+            <div class="panel">
+              <h3>计算过程明细</h3>
+              <div id="quoteCalcSummary" class="calc-summary"></div>
+              <div class="table-wrap">
+                <table id="quoteCalcStepsTable">
+                  <thead>
+                    <tr>
+                      <th>步骤</th>
+                      <th>公式/说明</th>
+                      <th>结果</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="importPage" class="page-section">
+          <div class="panel">
+            <h3>批量导入报价</h3>
+            <div class="toolbar toolbar-cards">
+              <button class="btn" id="downloadQuoteTemplateBtn" type="button">下载标准导入模板</button>
+              <label class="checkbox-line"><input type="checkbox" id="autoCreateCustomerDraft" /> 客户不存在时自动创建客户草稿</label>
+              <label class="checkbox-line"><input type="checkbox" id="autoCreateProductDraft" /> 产品不存在时自动创建产品草稿</label>
+            </div>
+            <div class="upload-box">
+              <input type="file" id="quoteImportFile" accept=".csv" />
+            </div>
+            <div class="toolbar">
+              <button class="btn" id="previewImportBtn" type="button">预校验</button>
+              <button class="btn btn-primary" id="confirmImportBtn" type="button">确认批量生成报价</button>
+            </div>
+            <div id="importSummary" class="hint"></div>
+            <div class="table-wrap">
+              <table id="importPreviewTable">
+                <thead>
+                  <tr>
+                    <th>行号</th>
+                    <th>状态</th>
+                    <th>客户</th>
+                    <th>SKU</th>
+                    <th>生效月份</th>
+                    <th>试算结果</th>
+                    <th>失败原因</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="formulaPage" class="page-section">
+          <div class="split">
+            <div class="panel">
+              <h3>公式管理</h3>
+              <form id="formulaForm" class="grid-form">
+                <input type="hidden" id="formulaEditId" />
+                <label>公式名称<input id="formulaName" /></label>
+                <label>公式编码<input id="formulaCode" /></label>
+                <label>公式版本<input id="formulaVersion" value="v1.0" /></label>
+                <label>适用客户类型<input id="formulaCustomerType" value="ALL" /></label>
+                <label>适用产品线<input id="formulaProductSeries" value="ALL" /></label>
+                <label>适用渠道<input id="formulaChannelType" value="ALL" /></label>
+                <label class="full">公式表达式<input id="formulaExpression" value="((MSRP / (1 + VAT)) * (1 - FrontMargin) * (1 - DB - CustomerMargin - ServiceFee - MKTFundingRate)) - STKbuffer" /></label>
+                <label>允许击穿成本生成草稿
+                  <select id="formulaAllowBelowCost">
+                    <option value="false">否</option>
+                    <option value="true">是</option>
+                  </select>
+                </label>
+                <label>状态
+                  <select id="formulaStatus">
+                    <option value="ACTIVE">启用</option>
+                  </select>
+                </label>
+                <label class="full">备注<input id="formulaRemark" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn btn-primary" id="saveFormulaBtn" type="button">保存公式</button>
+                <button class="btn" id="resetFormulaBtn" type="button">清空表单</button>
+              </div>
+              <div id="formulaFormAlert"></div>
+              <h4>公式试算</h4>
+              <form id="formulaTrialForm" class="grid-form compact-form">
+                <label>RRP<input id="trialMsrp" type="number" step="0.01" value="529" /></label>
+                <label data-permission-key="view_fob">成本价 / FOB<input id="trialCost" type="number" step="0.01" value="364" /></label>
+                <label>DB (F)<input id="trialDbRate" type="number" step="0.0001" value="0.0334" /></label>
+                <label>客户Margin (G)<input id="trialCustomerMargin" type="number" step="0.0001" value="0.124" /></label>
+                <label>Service Fee (H)<input id="trialServiceFee" type="number" step="0.0001" value="0.0012" /></label>
+                <label>联合营销 / MKT Funding<input id="trialMktFunding" type="number" step="0.01" value="0" /></label>
+                <label>STKbuffer (I)<input id="trialStkBuffer" type="number" step="0.01" value="5" /></label>
+                <label>联合营销占比<input id="trialMktFundingRate" type="text" readonly /></label>
+                <label>Front Margin (J)<input id="trialFrontMargin" type="number" step="0.0001" value="0.005" /></label>
+                <label>VAT (K)<input id="trialVat" type="number" step="0.0001" value="0.2" /></label>
+                <label>URA (L)<input id="trialUra" type="number" step="0.01" value="5.5" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn" id="tryFormulaBtn" type="button">试算公式</button>
+              </div>
+              <div id="formulaTrialResult" class="detail-placeholder"></div>
+            </div>
+
+            <div class="panel">
+              <h3>公式列表</h3>
+              <div class="table-wrap">
+                <table id="formulasTable">
+                  <thead>
+                    <tr>
+                      <th>名称</th>
+                      <th>编码</th>
+                      <th>版本</th>
+                      <th>适用客户类型</th>
+                      <th>适用产品线</th>
+                      <th>适用渠道</th>
+                      <th>允许击穿草稿</th>
+                      <th>状态</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="productPage" class="page-section">
+          <div class="split">
+            <div class="panel">
+              <h3>产品管理</h3>
+              <form id="productForm" class="grid-form">
+                <input type="hidden" id="productEditId" />
+                <label>产品名称<input id="productName" /></label>
+                <label>SKU<input id="productSku" /></label>
+                <label>产品系列<input id="productSeries" /></label>
+                <label>产品型号<input id="productModel" /></label>
+                <label>颜色/版本<input id="productVariant" /></label>
+                <label>上市时间<input id="productLaunchDate" type="date" /></label>
+                <label>默认零售价<input id="productDefaultMsrp" type="number" step="0.01" /></label>
+                <label data-permission-key="view_fob">默认成本价 / FOB<input id="productDefaultCost" type="number" step="0.01" /></label>
+                <label>默认公式模板<select id="productFormulaId"></select></label>
+                <label class="full">备注<input id="productRemark" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn btn-primary" id="saveProductBtn" type="button">保存产品</button>
+                <button class="btn" id="resetProductBtn" type="button">清空表单</button>
+              </div>
+              <div id="productFormAlert"></div>
+            </div>
+
+            <div class="panel">
+              <h3>产品列表</h3>
+              <div class="table-wrap">
+                <table id="productsTable">
+                  <thead>
+                    <tr>
+                      <th>产品名称</th>
+                      <th>SKU</th>
+                      <th>系列</th>
+                      <th>型号</th>
+                      <th>默认零售价</th>
+                      <th data-permission-key="view_fob">默认成本价 / FOB</th>
+                      <th>默认公式</th>
+                      <th>状态</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="customerPage" class="page-section">
+          <div class="split">
+            <div class="panel">
+              <div class="panel-head">
+                <h3 id="customerPanelTitle">客户管理</h3>
+              </div>
+              <form id="customerForm" class="grid-form">
+                <input type="hidden" id="customerEditId" />
+                <input type="hidden" id="customerRequestId" />
+                <label id="customerBaseCustomerLabel">关联已有客户（可选）<select id="customerBaseCustomerId"></select></label>
+                <label>客户名称<input id="customerName" /></label>
+                <label>客户编码<input id="customerCode" readonly /></label>
+                <label>正式合作日期<input id="customerFormalDate" type="date" /></label>
+                <label>客户等级<input id="customerLevel" value="B" /></label>
+                <label>客户类型<input id="customerType" value="RETAIL" /></label>
+                <label>渠道类型<input id="customerChannelType" value="OFFLINE" /></label>
+                <label>区域<input id="customerRegion" /></label>
+                <label>默认 DB (F)<input id="customerDbRate" type="number" step="0.0001" value="0.0334" /></label>
+                <label>默认 客户Margin (G)<input id="customerCustomerMargin" type="number" step="0.0001" value="0.124" /></label>
+                <label>默认 Service Fee (H)<input id="customerServiceFee" type="number" step="0.0001" value="0.0012" /></label>
+                <label>默认 联合营销 / MKT Funding<input id="customerMktFunding" type="number" step="0.01" value="0" /></label>
+                <label>默认 STKbuffer (I)<input id="customerStkBuffer" type="number" step="0.01" value="5" /></label>
+                <label>默认 Front Margin (J)<input id="customerFrontMargin" type="number" step="0.0001" value="0.005" /></label>
+                <label>默认 VAT (K)<input id="customerVat" type="number" step="0.0001" value="0.2" /></label>
+                <label>默认 URA (L)<input id="customerUra" type="number" step="0.01" value="5.5" /></label>
+                <label>默认审批人<select id="customerApproverId"></select></label>
+                <label class="full">备注<input id="customerRemark" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn btn-primary" id="saveCustomerBtn" type="button">保存客户</button>
+                <button class="btn" id="resetCustomerBtn" type="button">清空表单</button>
+              </div>
+              <div id="customerFormAlert"></div>
+            </div>
+
+            <div class="panel">
+              <h3 id="customerTableTitle">客户列表</h3>
+              <div id="customerRequestsWrap" class="table-wrap role-hidden">
+                <table id="customerRequestsTable">
+                  <thead>
+                    <tr>
+                      <th>申请单号</th>
+                      <th>申请类型</th>
+                      <th>客户名称</th>
+                      <th>客户编码</th>
+                      <th>政策摘要</th>
+                      <th>发起人</th>
+                      <th>业务审批</th>
+                      <th>财务抄送</th>
+                      <th>申请状态</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+              <div id="customersMasterWrap" class="table-wrap">
+                <table id="customersTable">
+                  <thead>
+                    <tr>
+                      <th>客户名称</th>
+                      <th>客户编码</th>
+                      <th>客户等级</th>
+                      <th>客户类型</th>
+                      <th>渠道类型</th>
+                      <th>区域</th>
+                      <th>默认 DB (F)</th>
+                      <th>默认 客户Margin (G)</th>
+                      <th>默认 Service Fee (H)</th>
+                      <th>默认 联合营销 / MKT Funding</th>
+                      <th>默认 STKbuffer (I)</th>
+                      <th>默认 Front Margin (J)</th>
+                      <th>默认 VAT (K)</th>
+                      <th>默认 URA (L)</th>
+                      <th>默认审批人</th>
+                      <th>状态</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="approvalPage" class="page-section">
+          <div class="panel">
+            <h3>审批中心</h3>
+            <div class="table-wrap">
+              <table id="approvalsTable">
+                <thead>
+                  <tr>
+                    <th>审批单号</th>
+                    <th>审批类型</th>
+                    <th>对象 / 摘要</th>
+                    <th>价格摘要</th>
+                    <th>预警 / 政策</th>
+                    <th>流程</th>
+                    <th>审批状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="accountPage" class="page-section">
+          <div class="split">
+            <div class="panel">
+              <div class="panel-head">
+                <h3>账号生成</h3>
+              </div>
+              <form id="accountForm" class="grid-form">
+                <input type="hidden" id="accountEditId" />
+                <label>显示名称<input id="accountDisplayName" /></label>
+                <label>登录账号<input id="accountUserName" autocomplete="username" /></label>
+                <label>账号角色
+                  <select id="accountRole">
+                    <option value="SALES_ENTRY">客户经理</option>
+                    <option value="SALES_MANAGER">电商负责人</option>
+                    <option value="BUSINESS_HEAD">总经理</option>
+                    <option value="FINANCE_HEAD">财务总监</option>
+                    <option value="SYSTEM_ADMIN">超级管理员</option>
+                  </select>
+                </label>
+                <label>所属团队<input id="accountTeam" /></label>
+                <label>登录密码<input id="accountPassword" type="password" autocomplete="new-password" /></label>
+                <label>账号状态
+                  <select id="accountStatus">
+                    <option value="ACTIVE">启用</option>
+                  </select>
+                </label>
+                <fieldset class="permission-fieldset full">
+                  <legend>核心权限</legend>
+                  <div class="permission-grid">
+                    <label class="checkbox-line"><input id="accountPermCreateCustomer" type="checkbox" /> 新增客户</label>
+                    <label class="checkbox-line"><input id="accountPermCreateProduct" type="checkbox" /> 新增产品</label>
+                    <label class="checkbox-line"><input id="accountPermViewFob" type="checkbox" /> 查看 FOB</label>
+                    <label class="checkbox-line"><input id="accountPermViewGrossMargin" type="checkbox" /> 查看毛利率</label>
+                    <label class="checkbox-line"><input id="accountPermViewGrossProfit" type="checkbox" /> 查看毛利额</label>
+                  </div>
+                </fieldset>
+                <label class="full">备注<input id="accountRemark" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn btn-primary" id="saveAccountBtn" type="button">生成 / 保存账号</button>
+                <button class="btn" id="resetAccountBtn" type="button">清空表单</button>
+              </div>
+              <div id="accountFormAlert"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h3>账号审批申请</h3>
+              </div>
+              <div class="table-wrap">
+                <table id="accountRequestsTable">
+                  <thead>
+                    <tr>
+                      <th>申请单号</th>
+                      <th>申请人</th>
+                      <th>申请账号</th>
+                      <th>申请角色</th>
+                      <th>所属团队</th>
+                      <th>申请原因</th>
+                      <th>申请状态</th>
+                      <th>生成结果</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>账号列表</h3>
+            </div>
+            <div class="table-wrap">
+              <table id="accountsTable">
+                <thead>
+                  <tr>
+                    <th>显示名称</th>
+                    <th>登录账号</th>
+                    <th>账号角色</th>
+                    <th>所属团队</th>
+                    <th>核心权限</th>
+                    <th>账号状态</th>
+                    <th>最近登录</th>
+                    <th>账号来源</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="logPage" class="page-section">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>操作日志</h3>
+              <div class="panel-head-actions">
+                <span id="logsSummary" class="hint">加载中...</span>
+                <button class="btn" id="toggleLogsPageBtn" type="button">收起页面</button>
+              </div>
+            </div>
+            <div id="logsPageContent">
+              <form id="logsFilterForm" class="grid-form">
+                <label>操作类型<select id="logActionType"></select></label>
+                <label>操作对象/关键词<input id="logTargetKeyword" /></label>
+                <label>操作人<select id="logOperatorName"></select></label>
+                <label>开始日期<input id="logDateFrom" type="date" /></label>
+                <label>结束日期<input id="logDateTo" type="date" /></label>
+              </form>
+              <div class="toolbar">
+                <button class="btn btn-primary" id="queryLogsBtn" type="button">查询日志</button>
+                <button class="btn" id="resetLogsBtn" type="button">重置筛选</button>
+              </div>
+              <div class="table-wrap">
+                <table id="logsTable">
+                  <thead>
+                    <tr>
+                      <th>操作类型</th>
+                      <th>操作对象</th>
+                      <th>变更摘要</th>
+                      <th>操作人</th>
+                      <th>操作时间</th>
+                      <th>设备信息</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./ui_i18n.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
