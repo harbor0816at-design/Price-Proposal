@@ -1306,6 +1306,7 @@
     if (dom.requestRole) {
       dom.requestRole.value = "SALES_ENTRY";
     }
+    renderAll();
     setAlert(dom.accountRequestAlert, tt("alerts.accountRequestSubmitted", { requestNo: request.request_no }), "success");
   }
 
@@ -4124,7 +4125,7 @@
       return;
     }
     const operator = getCurrentOperator();
-    const rows = buildApprovalCenterRows();
+    const rows = buildApprovalCenterRows(operator);
     if (rows.length === 0) {
       dom.approvalsTableBody.innerHTML = `<tr><td colspan="8">${escapeHtml(tr("暂无审批数据"))}</td></tr>`;
       return;
@@ -4133,7 +4134,9 @@
       .map((row) => {
         const canProcess = row.scope === "quote"
           ? canCurrentOperatorProcessApproval(row.approval, operator)
-          : canCurrentOperatorProcessCustomerRequest(row.request, operator);
+          : row.scope === "customer"
+            ? canCurrentOperatorProcessCustomerRequest(row.request, operator)
+            : canCurrentOperatorProcessAccountRequest(row.request, operator);
         return `
           <tr>
             <td>${escapeHtml(row.approvalNo)}</td>
@@ -4217,6 +4220,25 @@
       renderAll();
       return;
     }
+    if (scope === "account") {
+      const request = getAccountRequestById(button.dataset.approvalId);
+      if (!request) {
+        return;
+      }
+      if (action === "view") {
+        switchPage("accountPage");
+        loadAccountRequestIntoForm(request);
+        return;
+      }
+      if (action === "approve") {
+        approveAccountRequest(request, getCurrentOperator());
+        return;
+      }
+      if (action === "reject") {
+        rejectAccountRequest(request, getCurrentOperator());
+      }
+      return;
+    }
     const approval = getApprovalById(button.dataset.approvalId);
     if (!approval) {
       return;
@@ -4242,7 +4264,7 @@
     renderAll();
   }
 
-  function buildApprovalCenterRows() {
+  function buildApprovalCenterRows(operator = getCurrentOperator()) {
     const quoteRows = state.data.approvals.map((approval) => {
       const quote = getQuoteById(approval.quote_id);
       return {
@@ -4286,7 +4308,29 @@
       financeCc: renderFinanceCcStatus(request),
       approvalStatus: request.approval_status,
     }));
-    return quoteRows.concat(customerRows).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
+    const accountRows = canManageAccounts(operator)
+      ? state.data.account_requests.map((request) => ({
+          id: request.id,
+          scope: "account",
+          updated_at: request.updated_at,
+          approval: null,
+          request: request,
+          approvalNo: request.request_no,
+          approvalType: tr("申请账号"),
+          targetName: request.applicant_name,
+          targetCode: request.requested_user_name,
+          summary: request.reason || "-",
+          amount: "-",
+          sensitiveAmount: "-",
+          sensitiveRate: "-",
+          policyOrWarning: `<span class="hint">${escapeHtml(`${renderRoleLabel(request.requested_role)} / ${request.team || "-"}`)}</span>`,
+          initiatedBy: request.applicant_name,
+          currentNode: request.approval_status === "PENDING" ? (request.approver_name || tr("待审批")) : tr("审批完成"),
+          financeCc: "-",
+          approvalStatus: request.approval_status === "PENDING" ? "PENDING_APPROVAL" : request.approval_status,
+        }))
+      : [];
+    return quoteRows.concat(customerRows, accountRows).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
   }
 
   function renderFinanceCcStatus(request) {
@@ -4301,6 +4345,13 @@
       return false;
     }
     return hasAdministratorAccess(operator.role) || request.approver_id === operator.id;
+  }
+
+  function canCurrentOperatorProcessAccountRequest(request, operator) {
+    if (!request || !operator || request.approval_status !== "PENDING") {
+      return false;
+    }
+    return canManageAccounts(operator) || request.approver_id === operator.id;
   }
 
   function processCustomerRequest(requestId, action, operator, comment, silent) {
@@ -6477,7 +6528,7 @@
         ? "badge-green"
         : upper === "REJECTED" || upper === "REJECTED_PENDING_EDIT"
           ? "badge-red"
-          : upper === "IN_PROGRESS" || upper === "PENDING_APPROVAL" || upper === "PENDING_EFFECTIVE"
+          : upper === "IN_PROGRESS" || upper === "PENDING" || upper === "PENDING_APPROVAL" || upper === "PENDING_EFFECTIVE"
             ? "badge-yellow"
             : "badge-none";
     return `<span class="badge ${className}">${escapeHtml(renderPlainStatus(status))}</span>`;
@@ -6531,6 +6582,7 @@
       APPROVED: tr("已批准"),
       REJECTED: tr("已驳回"),
       ACTIVE: tr("已生效"),
+      PENDING: tr("待审批"),
       PENDING_APPROVAL: tr("待审批"),
       PENDING_EFFECTIVE: tr("待生效"),
       REJECTED_PENDING_EDIT: tr("驳回待修改"),

@@ -960,9 +960,9 @@
       de: "Für dieses Anmeldekonto existiert bereits ein offener Antrag {requestNo}.",
     },
     "alerts.accountRequestSubmitted": {
-      zh: "账号申请 {requestNo} 已提交，等待管理员审批。",
-      en: "Account request {requestNo} has been submitted and is waiting for administrator approval.",
-      de: "Der Kontoantrag {requestNo} wurde eingereicht und wartet auf die Freigabe durch einen Administrator.",
+      zh: "账号申请 {requestNo} 已提交，已流转至 harbor 审批中心等待处理。",
+      en: "Account request {requestNo} has been submitted and routed to harbor's approval center for processing.",
+      de: "Der Kontoantrag {requestNo} wurde eingereicht und an das Freigabecenter von harbor zur Bearbeitung weitergeleitet.",
     },
     "alerts.quoteCreated": {
       zh: "报价 {quoteNo} 已生成，并已自动发起{approvalType}审批。",
