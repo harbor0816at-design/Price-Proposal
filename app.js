@@ -869,43 +869,56 @@
     localStorage.removeItem(SESSION_KEY);
   }
 
-  function seedDemoIfNeeded() {
-    if (state.data.quotes.length > 0) {
-      return;
+  function findAvailableQuoteMonth(customerId, productId, startMonth = getCurrentMonthValue()) {
+    let month = normalizeMonthValue(startMonth) || getCurrentMonthValue();
+    for (let attempt = 0; attempt < 36; attempt += 1) {
+      const duplicateQuote = state.data.quotes.find((item) => {
+        if (item.customer_id !== customerId || item.product_id !== productId) {
+          return false;
+        }
+        if (normalizeMonthValue(item.effective_month) !== month) {
+          return false;
+        }
+        return String(item.approval_status || "").toUpperCase() !== "REJECTED";
+      });
+      if (!duplicateQuote) {
+        return month;
+      }
+      month = addMonthsToMonthValue(month, 1);
     }
-    const primaryAdmin = findPrimaryAdministratorUser();
-    if (!primaryAdmin) {
+    return addMonthsToMonthValue(getCurrentMonthValue(), 36);
+  }
+
+  function approveQuoteApprovalFully(approvalId, operator, comment = "Harbor 初始化审批通过") {
+    for (let step = 0; step < 6; step += 1) {
+      const approval = getApprovalById(approvalId);
+      if (!approval || String(approval.approval_status || "").toUpperCase() !== "IN_PROGRESS") {
+        return;
+      }
+      processApproval(approval.id, "approve", operator, comment, true);
+    }
+  }
+
+  function seedQuoteApprovalCenterData(primaryAdmin) {
+    const customerA = getCustomerById("cust_001") || getActiveCustomers()[0] || null;
+    const customerB = getCustomerById("cust_002") || getActiveCustomers()[1] || customerA;
+    const productA = getProductById("prod_001") || getActiveProducts()[0] || null;
+    const productB = getProductById("prod_002") || getActiveProducts()[1] || productA;
+    const formulaA = getFormulaById("formula_001") || getActiveFormulas()[0] || null;
+    const formulaB = getFormulaById("formula_002") || getActiveFormulas()[1] || formulaA;
+    if (!primaryAdmin || !customerA || !customerB || !productA || !productB || !formulaA || !formulaB) {
       return;
     }
 
-    createQuoteFromPayload(
-      {
-        customer_id: "cust_001",
-        product_id: "prod_001",
-        formula_id: "formula_001",
-        effective_month: getCurrentMonthValue(),
-        msrp: 899,
-        cost_price: 622,
-        db_rate: 0.0334,
-        customer_margin: 0.124,
-        service_fee: 0.0012,
-        mkt_funding: 0,
-        stk_buffer: 5,
-        front_margin: 0.005,
-        vat: 0.2,
-        ura: 5.5,
-        remark: "首月陈列支持",
-      },
-      primaryAdmin,
-      { silent: true }
-    );
+    const inProgressMonth = findAvailableQuoteMonth(customerB.id, productB.id, nextMonthValue());
+    const approvedMonth = findAvailableQuoteMonth(customerA.id, productA.id, addMonthsToMonthValue(inProgressMonth, 1));
 
-    createQuoteFromPayload(
+    const inProgressResult = createQuoteFromPayload(
       {
-        customer_id: "cust_002",
-        product_id: "prod_002",
-        formula_id: "formula_002",
-        effective_month: nextMonthValue(),
+        customer_id: customerB.id,
+        product_id: productB.id,
+        formula_id: formulaB.id,
+        effective_month: inProgressMonth,
         msrp: 529,
         cost_price: 364,
         db_rate: 0.03,
@@ -916,24 +929,153 @@
         front_margin: 0.006,
         vat: 0.2,
         ura: 5,
-        remark: "渠道活动支持",
+        remark: "审批中心初始化待审批报价",
       },
       primaryAdmin,
       { silent: true }
     );
 
-    const firstApproval = state.data.approvals[0];
-    if (firstApproval) {
-      processApproval(firstApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
-      processApproval(firstApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
+    if (inProgressResult?.approval?.id) {
+      processApproval(inProgressResult.approval.id, "approve", primaryAdmin, "Harbor 初始化审批通过", true);
+      processApproval(inProgressResult.approval.id, "approve", primaryAdmin, "Harbor 初始化审批通过", true);
     }
 
-    const secondApproval = state.data.approvals[1];
-    if (secondApproval) {
-      processApproval(secondApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
-      processApproval(secondApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
-    }
+    const approvedResult = createQuoteFromPayload(
+      {
+        customer_id: customerA.id,
+        product_id: productA.id,
+        formula_id: formulaA.id,
+        effective_month: approvedMonth,
+        msrp: 899,
+        cost_price: 622,
+        db_rate: 0.0334,
+        customer_margin: 0.124,
+        service_fee: 0.0012,
+        mkt_funding: 0,
+        stk_buffer: 5,
+        front_margin: 0.005,
+        vat: 0.2,
+        ura: 5.5,
+        remark: "审批中心初始化已审批报价",
+      },
+      primaryAdmin,
+      { silent: true }
+    );
 
+    if (approvedResult?.approval?.id) {
+      approveQuoteApprovalFully(approvedResult.approval.id, primaryAdmin);
+    }
+  }
+
+  function buildApprovalCenterSeedCustomerCode() {
+    let index = 1;
+    while (index < 1000) {
+      const candidate = `HB-APR-${compactToday()}-${String(index).padStart(2, "0")}`;
+      const exists =
+        state.data.customers.some((item) => String(item.customer_code || "").toUpperCase() === candidate) ||
+        state.data.customer_requests.some((item) => String(item.customer_code || "").toUpperCase() === candidate);
+      if (!exists) {
+        return candidate;
+      }
+      index += 1;
+    }
+    return `HB-APR-${compactToday()}-${Date.now()}`;
+  }
+
+  function seedCustomerApprovalCenterData(primaryAdmin) {
+    if (!primaryAdmin) {
+      return;
+    }
+    const now = nowIso();
+    const formalDate = new Date().toISOString().slice(0, 10);
+    const customerCode = buildApprovalCenterSeedCustomerCode();
+    const index = state.data.customer_requests.length + 1;
+    const snapshot = {
+      id: "",
+      customer_name: `Harbor 审批演示客户${index}`,
+      customer_code: customerCode,
+      formal_cooperation_date: formalDate,
+      customer_level: "B",
+      customer_type: "RETAIL",
+      channel_type: "OFFLINE",
+      region: "华东",
+      default_db_rate: 0.032,
+      default_customer_margin: 0.115,
+      default_service_fee: 0.0012,
+      default_mkt_funding: 0,
+      default_stk_buffer: 3,
+      default_front_margin: 0.005,
+      default_vat: 0.2,
+      default_ura: 5,
+      default_approver_id: primaryAdmin.id,
+      remark: "审批中心初始化客户申请",
+    };
+    const request = {
+      id: buildId("customer_request"),
+      request_no: buildBusinessNo("CRQ", state.data.customer_requests),
+      request_type: "NEW_CUSTOMER",
+      target_customer_id: "",
+      customer_name: snapshot.customer_name,
+      customer_code: snapshot.customer_code,
+      proposed_customer: {
+        ...snapshot,
+        id: "",
+        status: "ACTIVE",
+        created_at: now,
+        updated_at: now,
+      },
+      before_customer: null,
+      summary: buildCustomerRequestSummary(snapshot, null),
+      policy_snapshot: buildCustomerPolicySnapshot(snapshot),
+      approval_status: "IN_PROGRESS",
+      request_status: "PENDING_APPROVAL",
+      current_node: 1,
+      current_node_name: tr("业务负责人审批"),
+      approver_id: primaryAdmin.id,
+      approver_name: primaryAdmin.display_name,
+      finance_cc_id: primaryAdmin.id,
+      finance_cc_name: primaryAdmin.display_name,
+      finance_cc_status: tr("待抄送"),
+      finance_copied_at: "",
+      initiated_by: primaryAdmin.id,
+      initiated_by_name: primaryAdmin.display_name,
+      initiated_at: now,
+      approved_at: "",
+      updated_at: now,
+      nodes: [
+        {
+          id: buildId("customer_request_node"),
+          node_order: 1,
+          node_name: tr("业务负责人审批"),
+          approver_id: primaryAdmin.id,
+          approver_name: primaryAdmin.display_name,
+          approval_status: "IN_PROGRESS",
+          approval_comment: "",
+          approved_at: "",
+        },
+      ],
+    };
+    state.data.customer_requests.unshift(request);
+    writeLog(
+      "INIT_APPROVAL_CENTER_CUSTOMER_REQUEST",
+      request.customer_code,
+      null,
+      { request_no: request.request_no, request_type: request.request_type },
+      primaryAdmin
+    );
+  }
+
+  function seedDemoIfNeeded() {
+    const primaryAdmin = findPrimaryAdministratorUser();
+    if (!primaryAdmin) {
+      return;
+    }
+    if (state.data.approvals.length === 0) {
+      seedQuoteApprovalCenterData(primaryAdmin);
+    }
+    if (state.data.customer_requests.length === 0) {
+      seedCustomerApprovalCenterData(primaryAdmin);
+    }
     persistData();
   }
 
