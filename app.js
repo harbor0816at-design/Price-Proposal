@@ -124,8 +124,6 @@
     dom.requestDisplayName = document.getElementById("requestDisplayName");
     dom.requestUserName = document.getElementById("requestUserName");
     dom.requestPassword = document.getElementById("requestPassword");
-    dom.requestRole = document.getElementById("requestRole");
-    dom.requestPosition = document.getElementById("requestPosition");
     dom.requestTeam = document.getElementById("requestTeam");
     dom.requestReason = document.getElementById("requestReason");
     dom.submitAccountRequestBtn = document.getElementById("submitAccountRequestBtn");
