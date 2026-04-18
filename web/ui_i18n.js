@@ -36,7 +36,16 @@
     },
     "申请人姓名": { en: "Applicant Name", de: "Name des Antragstellers" },
     "申请账号": { en: "Requested Login ID", de: "Beantragtes Anmeldekonto" },
+    "申请密码": { en: "Requested Password", de: "Beantragtes Passwort" },
     "申请角色": { en: "Requested Role", de: "Beantragte Rolle" },
+    "账号申请提交后，由管理员审批并生成登录账号。申请密码仅申请人本人知晓，系统不会在审批过程中展示。": {
+      en: "After submission, an administrator reviews the request and generates the login account. The requested password is known only to the applicant and is not shown during approval.",
+      de: "Nach dem Einreichen prüft ein Administrator den Antrag und erstellt das Anmeldekonto. Das beantragte Passwort ist nur dem Antragsteller bekannt und wird während der Freigabe nicht angezeigt.",
+    },
+    "密码规则：必须同时包含英文字母和数字，且只能由申请人本人知晓。": {
+      en: "Password rule: it must contain both English letters and numbers, and only the applicant should know it.",
+      de: "Passwortregel: Es muss sowohl englische Buchstaben als auch Zahlen enthalten, und nur der Antragsteller sollte es kennen.",
+    },
     "客户经理": { en: "Customer Manager", de: "Kundenmanager" },
     "业务员": { en: "Sales Rep", de: "Vertriebsmitarbeiter" },
     "业务主管": { en: "Sales Manager", de: "Vertriebsleiter" },
@@ -508,9 +517,17 @@
       en: "Incorrect password. Please try again.",
       de: "Falsches Passwort. Bitte erneut eingeben.",
     },
-    "请完整填写申请人、申请账号、团队和申请原因。": {
-      en: "Please complete applicant name, requested login ID, team, and reason.",
-      de: "Bitte Antragsteller, beantragtes Anmeldekonto, Team und Begründung vollständig ausfüllen.",
+    "请完整填写申请人、申请账号、申请密码、团队和申请原因。": {
+      en: "Please complete applicant name, requested login ID, requested password, team, and reason.",
+      de: "Bitte Antragsteller, beantragtes Anmeldekonto, beantragtes Passwort, Team und Begründung vollständig ausfüllen.",
+    },
+    "申请密码必须同时包含英文字母和数字，且只能使用英文字母与数字。": {
+      en: "The requested password must contain both English letters and numbers, and may use only letters and numbers.",
+      de: "Das beantragte Passwort muss sowohl englische Buchstaben als auch Zahlen enthalten und darf nur Buchstaben und Zahlen verwenden.",
+    },
+    "该申请未包含有效密码，请通知申请人重新提交账号申请。": {
+      en: "This request does not contain a valid password. Please ask the applicant to submit the account request again.",
+      de: "Dieser Antrag enthält kein gültiges Passwort. Bitte fordern Sie den Antragsteller auf, den Kontoantrag erneut einzureichen.",
     },
     "该登录账号已存在，请更换申请账号。": {
       en: "This login ID already exists. Please choose another requested login ID.",
@@ -1090,9 +1107,9 @@
       de: "Das Anmeldekonto {userName} existiert bereits und kann nicht erneut erstellt werden.",
     },
     "alerts.accountRequestApproved": {
-      zh: "申请 {requestNo} 已批准，账号 {userName} 已生成。",
-      en: "Request {requestNo} has been approved and account {userName} has been generated.",
-      de: "Der Antrag {requestNo} wurde freigegeben und das Konto {userName} wurde erstellt.",
+      zh: "申请 {requestNo} 已批准，账号 {userName} 已生成，并沿用申请人提交的密码。",
+      en: "Request {requestNo} has been approved and account {userName} has been generated with the applicant's submitted password.",
+      de: "Der Antrag {requestNo} wurde freigegeben und das Konto {userName} wurde mit dem vom Antragsteller eingereichten Passwort erstellt.",
     },
     "alerts.accountRequestProcessedReject": {
       zh: "申请 {requestNo} 已处理，无需重复驳回。",
@@ -1120,9 +1137,9 @@
       de: "Automatisch aus Kontoantrag {requestNo} erzeugt",
     },
     "account.requestResultApproved": {
-      zh: "已生成 {userName} / 临时密码 {password}",
-      en: "Generated {userName} / temporary password {password}",
-      de: "Erstellt {userName} / temporäres Passwort {password}",
+      zh: "已生成账号 {userName}",
+      en: "Account {userName} has been generated",
+      de: "Das Konto {userName} wurde erstellt",
     },
     "details.currentNode": {
       zh: "当前节点：{node}",

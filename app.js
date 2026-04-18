@@ -120,6 +120,7 @@
     dom.loginAlert = document.getElementById("loginAlert");
     dom.requestDisplayName = document.getElementById("requestDisplayName");
     dom.requestUserName = document.getElementById("requestUserName");
+    dom.requestPassword = document.getElementById("requestPassword");
     dom.requestRole = document.getElementById("requestRole");
     dom.requestTeam = document.getElementById("requestTeam");
     dom.requestReason = document.getElementById("requestReason");
@@ -738,7 +739,13 @@
       quotes: Array.isArray(raw?.quotes) ? raw.quotes.map((item) => normalizeQuoteRecord(item)) : [],
       approvals: Array.isArray(raw?.approvals) ? raw.approvals : [],
       customer_requests: Array.isArray(raw?.customer_requests) ? raw.customer_requests : [],
-      account_requests: Array.isArray(raw?.account_requests) ? raw.account_requests : [],
+      account_requests: Array.isArray(raw?.account_requests)
+        ? raw.account_requests.map((request) => ({
+            ...request,
+            requested_password: String(request?.requested_password || "").trim(),
+            generated_password: String(request?.generated_password || ""),
+          }))
+        : [],
       logs: Array.isArray(raw?.logs) ? raw.logs : [],
     };
     return migratePrimaryAdministratorReferences(normalized);
@@ -869,214 +876,84 @@
     localStorage.removeItem(SESSION_KEY);
   }
 
-  function findAvailableQuoteMonth(customerId, productId, startMonth = getCurrentMonthValue()) {
-    let month = normalizeMonthValue(startMonth) || getCurrentMonthValue();
-    for (let attempt = 0; attempt < 36; attempt += 1) {
-      const duplicateQuote = state.data.quotes.find((item) => {
-        if (item.customer_id !== customerId || item.product_id !== productId) {
-          return false;
-        }
-        if (normalizeMonthValue(item.effective_month) !== month) {
-          return false;
-        }
-        return String(item.approval_status || "").toUpperCase() !== "REJECTED";
-      });
-      if (!duplicateQuote) {
-        return month;
+  function isSeededApprovalQuote(quote) {
+    return ["审批中心初始化待审批报价", "审批中心初始化已审批报价"].includes(String(quote?.remark || "").trim());
+  }
+
+  function isSeededCustomerRequest(request) {
+    return String(request?.proposed_customer?.remark || "").trim() === "审批中心初始化客户申请";
+  }
+
+  function isSeededCustomerRecord(customer) {
+    return String(customer?.remark || "").trim() === "审批中心初始化客户申请";
+  }
+
+  function cleanupInitialApprovalAndLogData() {
+    const removedQuoteIds = new Set();
+    const removedLogTargets = new Set();
+    const removedCustomerCodes = new Set();
+    let changed = false;
+
+    state.data.quotes = state.data.quotes.filter((quote) => {
+      if (!isSeededApprovalQuote(quote)) {
+        return true;
       }
-      month = addMonthsToMonthValue(month, 1);
-    }
-    return addMonthsToMonthValue(getCurrentMonthValue(), 36);
-  }
+      changed = true;
+      removedQuoteIds.add(quote.id);
+      removedLogTargets.add(String(quote.quote_no || ""));
+      return false;
+    });
 
-  function approveQuoteApprovalFully(approvalId, operator, comment = "Harbor 初始化审批通过") {
-    for (let step = 0; step < 6; step += 1) {
-      const approval = getApprovalById(approvalId);
-      if (!approval || String(approval.approval_status || "").toUpperCase() !== "IN_PROGRESS") {
-        return;
+    state.data.approvals = state.data.approvals.filter((approval) => {
+      if (!removedQuoteIds.has(approval.quote_id)) {
+        return true;
       }
-      processApproval(approval.id, "approve", operator, comment, true);
-    }
-  }
+      changed = true;
+      removedLogTargets.add(String(approval.approval_no || ""));
+      return false;
+    });
 
-  function seedQuoteApprovalCenterData(primaryAdmin) {
-    const customerA = getCustomerById("cust_001") || getActiveCustomers()[0] || null;
-    const customerB = getCustomerById("cust_002") || getActiveCustomers()[1] || customerA;
-    const productA = getProductById("prod_001") || getActiveProducts()[0] || null;
-    const productB = getProductById("prod_002") || getActiveProducts()[1] || productA;
-    const formulaA = getFormulaById("formula_001") || getActiveFormulas()[0] || null;
-    const formulaB = getFormulaById("formula_002") || getActiveFormulas()[1] || formulaA;
-    if (!primaryAdmin || !customerA || !customerB || !productA || !productB || !formulaA || !formulaB) {
-      return;
-    }
-
-    const inProgressMonth = findAvailableQuoteMonth(customerB.id, productB.id, nextMonthValue());
-    const approvedMonth = findAvailableQuoteMonth(customerA.id, productA.id, addMonthsToMonthValue(inProgressMonth, 1));
-
-    const inProgressResult = createQuoteFromPayload(
-      {
-        customer_id: customerB.id,
-        product_id: productB.id,
-        formula_id: formulaB.id,
-        effective_month: inProgressMonth,
-        msrp: 529,
-        cost_price: 364,
-        db_rate: 0.03,
-        customer_margin: 0.118,
-        service_fee: 0.001,
-        mkt_funding: 0,
-        stk_buffer: 4,
-        front_margin: 0.006,
-        vat: 0.2,
-        ura: 5,
-        remark: "审批中心初始化待审批报价",
-      },
-      primaryAdmin,
-      { silent: true }
-    );
-
-    if (inProgressResult?.approval?.id) {
-      processApproval(inProgressResult.approval.id, "approve", primaryAdmin, "Harbor 初始化审批通过", true);
-      processApproval(inProgressResult.approval.id, "approve", primaryAdmin, "Harbor 初始化审批通过", true);
-    }
-
-    const approvedResult = createQuoteFromPayload(
-      {
-        customer_id: customerA.id,
-        product_id: productA.id,
-        formula_id: formulaA.id,
-        effective_month: approvedMonth,
-        msrp: 899,
-        cost_price: 622,
-        db_rate: 0.0334,
-        customer_margin: 0.124,
-        service_fee: 0.0012,
-        mkt_funding: 0,
-        stk_buffer: 5,
-        front_margin: 0.005,
-        vat: 0.2,
-        ura: 5.5,
-        remark: "审批中心初始化已审批报价",
-      },
-      primaryAdmin,
-      { silent: true }
-    );
-
-    if (approvedResult?.approval?.id) {
-      approveQuoteApprovalFully(approvedResult.approval.id, primaryAdmin);
-    }
-  }
-
-  function buildApprovalCenterSeedCustomerCode() {
-    let index = 1;
-    while (index < 1000) {
-      const candidate = `HB-APR-${compactToday()}-${String(index).padStart(2, "0")}`;
-      const exists =
-        state.data.customers.some((item) => String(item.customer_code || "").toUpperCase() === candidate) ||
-        state.data.customer_requests.some((item) => String(item.customer_code || "").toUpperCase() === candidate);
-      if (!exists) {
-        return candidate;
+    state.data.customer_requests = state.data.customer_requests.filter((request) => {
+      if (!isSeededCustomerRequest(request)) {
+        return true;
       }
-      index += 1;
-    }
-    return `HB-APR-${compactToday()}-${Date.now()}`;
-  }
+      changed = true;
+      removedLogTargets.add(String(request.request_no || ""));
+      removedLogTargets.add(String(request.customer_code || ""));
+      removedCustomerCodes.add(String(request.customer_code || ""));
+      return false;
+    });
 
-  function seedCustomerApprovalCenterData(primaryAdmin) {
-    if (!primaryAdmin) {
-      return;
-    }
-    const now = nowIso();
-    const formalDate = new Date().toISOString().slice(0, 10);
-    const customerCode = buildApprovalCenterSeedCustomerCode();
-    const index = state.data.customer_requests.length + 1;
-    const snapshot = {
-      id: "",
-      customer_name: `Harbor 审批演示客户${index}`,
-      customer_code: customerCode,
-      formal_cooperation_date: formalDate,
-      customer_level: "B",
-      customer_type: "RETAIL",
-      channel_type: "OFFLINE",
-      region: "华东",
-      default_db_rate: 0.032,
-      default_customer_margin: 0.115,
-      default_service_fee: 0.0012,
-      default_mkt_funding: 0,
-      default_stk_buffer: 3,
-      default_front_margin: 0.005,
-      default_vat: 0.2,
-      default_ura: 5,
-      default_approver_id: primaryAdmin.id,
-      remark: "审批中心初始化客户申请",
-    };
-    const request = {
-      id: buildId("customer_request"),
-      request_no: buildBusinessNo("CRQ", state.data.customer_requests),
-      request_type: "NEW_CUSTOMER",
-      target_customer_id: "",
-      customer_name: snapshot.customer_name,
-      customer_code: snapshot.customer_code,
-      proposed_customer: {
-        ...snapshot,
-        id: "",
-        status: "ACTIVE",
-        created_at: now,
-        updated_at: now,
-      },
-      before_customer: null,
-      summary: buildCustomerRequestSummary(snapshot, null),
-      policy_snapshot: buildCustomerPolicySnapshot(snapshot),
-      approval_status: "IN_PROGRESS",
-      request_status: "PENDING_APPROVAL",
-      current_node: 1,
-      current_node_name: tr("业务负责人审批"),
-      approver_id: primaryAdmin.id,
-      approver_name: primaryAdmin.display_name,
-      finance_cc_id: primaryAdmin.id,
-      finance_cc_name: primaryAdmin.display_name,
-      finance_cc_status: tr("待抄送"),
-      finance_copied_at: "",
-      initiated_by: primaryAdmin.id,
-      initiated_by_name: primaryAdmin.display_name,
-      initiated_at: now,
-      approved_at: "",
-      updated_at: now,
-      nodes: [
-        {
-          id: buildId("customer_request_node"),
-          node_order: 1,
-          node_name: tr("业务负责人审批"),
-          approver_id: primaryAdmin.id,
-          approver_name: primaryAdmin.display_name,
-          approval_status: "IN_PROGRESS",
-          approval_comment: "",
-          approved_at: "",
-        },
-      ],
-    };
-    state.data.customer_requests.unshift(request);
-    writeLog(
-      "INIT_APPROVAL_CENTER_CUSTOMER_REQUEST",
-      request.customer_code,
-      null,
-      { request_no: request.request_no, request_type: request.request_type },
-      primaryAdmin
-    );
+    state.data.customers = state.data.customers.filter((customer) => {
+      if (!isSeededCustomerRecord(customer) && !removedCustomerCodes.has(String(customer.customer_code || ""))) {
+        return true;
+      }
+      changed = true;
+      removedLogTargets.add(String(customer.customer_code || ""));
+      return false;
+    });
+
+    state.data.logs = state.data.logs.filter((log) => {
+      const target = String(log?.target_name || "");
+      const actionType = String(log?.action_type || "").toUpperCase();
+      if (actionType === "INIT_APPROVAL_CENTER_CUSTOMER_REQUEST") {
+        changed = true;
+        return false;
+      }
+      if (removedLogTargets.has(target)) {
+        changed = true;
+        return false;
+      }
+      return true;
+    });
+
+    return changed;
   }
 
   function seedDemoIfNeeded() {
-    const primaryAdmin = findPrimaryAdministratorUser();
-    if (!primaryAdmin) {
-      return;
+    if (cleanupInitialApprovalAndLogData()) {
+      persistData();
     }
-    if (state.data.approvals.length === 0) {
-      seedQuoteApprovalCenterData(primaryAdmin);
-    }
-    if (state.data.customer_requests.length === 0) {
-      seedCustomerApprovalCenterData(primaryAdmin);
-    }
-    persistData();
   }
 
   function ensureInitialSelections() {
@@ -1212,6 +1089,10 @@
     return Boolean(getCurrentOperator());
   }
 
+  function isValidApplicantPassword(password) {
+    return /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]+$/.test(String(password || "").trim());
+  }
+
   function onLogin() {
     const userName = String(dom.loginUserName?.value || "").trim().toLowerCase();
     const password = String(dom.loginPassword?.value || "");
@@ -1252,11 +1133,16 @@
   function onSubmitAccountRequest() {
     const applicantName = String(dom.requestDisplayName?.value || "").trim();
     const userName = String(dom.requestUserName?.value || "").trim().toLowerCase();
+    const password = String(dom.requestPassword?.value || "").trim();
     const role = String(dom.requestRole?.value || "SALES_ENTRY");
     const team = String(dom.requestTeam?.value || "").trim();
     const reason = String(dom.requestReason?.value || "").trim();
-    if (!applicantName || !userName || !team || !reason) {
-      setAlert(dom.accountRequestAlert, tr("请完整填写申请人、申请账号、团队和申请原因。"), "danger");
+    if (!applicantName || !userName || !password || !team || !reason) {
+      setAlert(dom.accountRequestAlert, tr("请完整填写申请人、申请账号、申请密码、团队和申请原因。"), "danger");
+      return;
+    }
+    if (!isValidApplicantPassword(password)) {
+      setAlert(dom.accountRequestAlert, tr("申请密码必须同时包含英文字母和数字，且只能使用英文字母与数字。"), "danger");
       return;
     }
     if (getUserByUserName(userName)) {
@@ -1276,6 +1162,7 @@
       request_no: buildBusinessNo("ARQ", state.data.account_requests),
       applicant_name: applicantName,
       requested_user_name: userName,
+      requested_password: password,
       requested_role: role,
       team,
       reason,
@@ -1296,6 +1183,9 @@
     }
     if (dom.requestUserName) {
       dom.requestUserName.value = "";
+    }
+    if (dom.requestPassword) {
+      dom.requestPassword.value = "";
     }
     if (dom.requestTeam) {
       dom.requestTeam.value = "";
@@ -3729,7 +3619,7 @@
 
   function renderAccountRequestResult(request) {
     if (request.approval_status === "APPROVED") {
-      return tt("account.requestResultApproved", { userName: request.requested_user_name, password: request.generated_password || TEMP_ACCOUNT_PASSWORD });
+      return tt("account.requestResultApproved", { userName: request.requested_user_name });
     }
     if (request.approval_status === "REJECTED") {
       return tr("已驳回");
@@ -3998,7 +3888,7 @@
     }
     setAccountPermissionInputs(buildDefaultPermissionsForRole(request.requested_role));
     setInputValue(dom.accountTeam, request.team);
-    setInputValue(dom.accountPassword, TEMP_ACCOUNT_PASSWORD);
+    setInputValue(dom.accountPassword, "");
     if (dom.accountStatus) {
       dom.accountStatus.value = "ACTIVE";
     }
@@ -4009,6 +3899,10 @@
   function approveAccountRequest(request, operator) {
     if (request.approval_status !== "PENDING") {
       setAlert(dom.accountFormAlert, tt("alerts.accountRequestProcessed", { requestNo: request.request_no }), "warn");
+      return;
+    }
+    if (!isValidApplicantPassword(request.requested_password)) {
+      setAlert(dom.accountFormAlert, tr("该申请未包含有效密码，请通知申请人重新提交账号申请。"), "danger");
       return;
     }
     if (getUserByUserName(request.requested_user_name)) {
@@ -4024,7 +3918,7 @@
       permissions: buildDefaultPermissionsForRole(request.requested_role),
       team: request.team,
       status: "ACTIVE",
-      password: TEMP_ACCOUNT_PASSWORD,
+      password: request.requested_password,
       account_origin: "ACCOUNT_REQUEST",
       approved_by: operator.id,
       approved_by_name: operator.display_name,
@@ -4038,7 +3932,7 @@
       ...request,
       approval_status: "APPROVED",
       generated_user_id: user.id,
-      generated_password: TEMP_ACCOUNT_PASSWORD,
+      generated_password: "",
       approved_at: now,
       updated_at: now,
     });
@@ -4048,7 +3942,6 @@
       null,
       {
         request_no: request.request_no,
-        generated_password: TEMP_ACCOUNT_PASSWORD,
         permission_summary: buildPermissionSummary(user.permissions),
       },
       operator
