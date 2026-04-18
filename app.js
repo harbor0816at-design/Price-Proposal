@@ -1,6 +1,8 @@
 (function () {
   const STORAGE_KEY = "customer_quote_management_web_v1";
   const SESSION_KEY = "customer_quote_management_web_session_v1";
+  const WORKFLOW_CLEANUP_KEY = "customer_quote_management_workflow_cleanup_v2";
+  const WORKFLOW_CLEANUP_VERSION = "2026-04-19-clean-request-and-workflow";
   const IMPORT_TEMPLATE_HEADERS = [
     "customer_name",
     "customer_code",
@@ -990,7 +992,34 @@
   }
 
   function seedDemoIfNeeded() {
+    let changed = false;
+    const hasAppliedWorkflowCleanup = localStorage.getItem(WORKFLOW_CLEANUP_KEY) === WORKFLOW_CLEANUP_VERSION;
+
+    if (!hasAppliedWorkflowCleanup) {
+      if (state.data.approvals.length || state.data.customer_requests.length || state.data.account_requests.length || state.data.logs.length) {
+        changed = true;
+      }
+      state.data.approvals = [];
+      state.data.customer_requests = [];
+      state.data.account_requests = [];
+      state.data.logs = [];
+      state.ui.activeCustomerRequestId = "";
+      state.ui.expandedLogIds = [];
+      state.ui.logFilters = {
+        actionType: "",
+        targetKeyword: "",
+        operatorName: "",
+        dateFrom: "",
+        dateTo: "",
+      };
+      localStorage.setItem(WORKFLOW_CLEANUP_KEY, WORKFLOW_CLEANUP_VERSION);
+    }
+
     if (cleanupInitialApprovalAndLogData()) {
+      changed = true;
+    }
+
+    if (changed) {
       persistData();
     }
   }
@@ -1173,8 +1202,8 @@
     const applicantName = String(dom.requestDisplayName?.value || "").trim();
     const userName = String(dom.requestUserName?.value || "").trim().toLowerCase();
     const password = String(dom.requestPassword?.value || "").trim();
-    const role = String(dom.requestRole?.value || "SALES_ENTRY");
-    const position = String(dom.requestPosition?.value || "").trim();
+    const role = "SALES_ENTRY";
+    const position = "";
     const team = String(dom.requestTeam?.value || "").trim();
     const reason = String(dom.requestReason?.value || "").trim();
     if (!applicantName || !userName || !password || !team || !reason) {
@@ -1237,14 +1266,8 @@
     if (dom.requestTeam) {
       dom.requestTeam.value = "";
     }
-    if (dom.requestPosition) {
-      dom.requestPosition.value = "";
-    }
     if (dom.requestReason) {
       dom.requestReason.value = "";
-    }
-    if (dom.requestRole) {
-      dom.requestRole.value = "SALES_ENTRY";
     }
     renderAll();
     setAlert(dom.accountRequestAlert, tt("alerts.accountRequestSubmitted", { requestNo: request.request_no }), "success");
@@ -3616,7 +3639,7 @@
   function renderAccountsPage() {
     if (!canManageAccounts()) {
       if (dom.accountRequestsTableBody) {
-        dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tr("仅超级管理员 harbor 可查看账号审批数据"))}</td></tr>`;
+        dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅超级管理员 harbor 可查看账号审批数据"))}</td></tr>`;
       }
       if (dom.accountsTableBody) {
         dom.accountsTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tr("仅超级管理员 harbor 可查看账号列表"))}</td></tr>`;
@@ -3637,7 +3660,7 @@
       .slice()
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
     if (rows.length === 0) {
-      dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tr("暂无账号申请"))}</td></tr>`;
+      dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("暂无账号申请"))}</td></tr>`;
       return;
     }
     dom.accountRequestsTableBody.innerHTML = rows
@@ -3648,7 +3671,6 @@
             <td>${escapeHtml(request.applicant_name)}</td>
             <td>${escapeHtml(request.requested_user_name)}</td>
             <td>${escapeHtml(renderRoleLabel(request.requested_role))}</td>
-            <td>${escapeHtml(request.requested_position || "-")}</td>
             <td>${escapeHtml(request.team)}</td>
             <td>${escapeHtml(request.reason)}</td>
             <td>${renderStatusBadge(request.approval_status === "PENDING" ? "PENDING_APPROVAL" : request.approval_status)}</td>
