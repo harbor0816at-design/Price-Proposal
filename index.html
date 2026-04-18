@@ -97,15 +97,13 @@
           <div class="panel">
             <h3>筛选条件</h3>
             <form id="quoteQueryForm" class="grid-form">
-              <label class="full">批量查询关键词<textarea id="queryBatchKeywords" name="batch_keywords"></textarea></label>
+              <label class="full">批量查询关键词（支持客户 / 产品 / 时间模糊查询）<textarea id="queryBatchKeywords" name="batch_keywords"></textarea></label>
               <label>客户名称<select id="queryCustomerName" name="customer_name"></select></label>
               <label>客户编码<select id="queryCustomerCode" name="customer_code"></select></label>
               <label>SKU<select id="querySku" name="sku"></select></label>
               <label>产品名称<select id="queryProductName" name="product_name"></select></label>
               <label>产品系列<select id="queryProductSeries" name="product_series"></select></label>
               <label>生效月份<select id="queryEffectiveMonth" name="effective_month"></select></label>
-              <label>报价状态<select id="queryQuoteStatus" name="quote_status"></select></label>
-              <label>审批状态<select id="queryApprovalStatus" name="approval_status"></select></label>
               <label>公式版本<select id="queryFormulaVersion" name="formula_version"></select></label>
             </form>
             <div class="toolbar">
@@ -136,8 +134,6 @@
                     <th data-permission-key="view_gross_profit">毛利额</th>
                     <th data-permission-key="view_gross_margin">毛利率</th>
                     <th>生效月份</th>
-                    <th>审批状态</th>
-                    <th>报价状态</th>
                     <th>更新时间</th>
                   </tr>
                 </thead>
@@ -316,11 +312,21 @@
               <form id="productForm" class="grid-form">
                 <input type="hidden" id="productEditId" />
                 <label>产品名称<input id="productName" /></label>
+                <label>SKU CODE<input id="productSkuCode" /></label>
+                <label>EAN 13<input id="productEan13" /></label>
                 <label>SKU<input id="productSku" /></label>
+                <label>CPH<input id="productCph" /></label>
                 <label>产品系列<input id="productSeries" /></label>
                 <label>产品型号<input id="productModel" /></label>
                 <label>颜色/版本<input id="productVariant" /></label>
                 <label>上市时间<input id="productLaunchDate" type="date" /></label>
+                <label>Net Weight (g)<input id="productNetWeight" type="number" step="0.01" /></label>
+                <label>Gross Weight (g)<input id="productGrossWeight" type="number" step="0.01" /></label>
+                <label>Phone Dimensions (L*B*H)<input id="productPhoneDimensions" /></label>
+                <label>Color Box Dimensions (L*B*H)<input id="productColorBoxDimensions" /></label>
+                <label>Inner Carton Dimensions (L*B*H)<input id="productInnerCartonDimensions" /></label>
+                <label>Units per Carton<input id="productUnitsPerCarton" type="number" step="1" /></label>
+                <label>Carton Weight (KG)<input id="productCartonWeight" type="number" step="0.01" /></label>
                 <label>默认零售价<input id="productDefaultMsrp" type="number" step="0.01" /></label>
                 <label data-permission-key="view_fob">默认成本价 / FOB<input id="productDefaultCost" type="number" step="0.01" /></label>
                 <label>默认公式模板<select id="productFormulaId"></select></label>
@@ -340,9 +346,18 @@
                   <thead>
                     <tr>
                       <th>产品名称</th>
+                      <th>SKU CODE</th>
+                      <th>EAN 13</th>
                       <th>SKU</th>
+                      <th>CPH</th>
+                      <th>Net Weight (g)</th>
+                      <th>Gross Weight (g)</th>
+                      <th>Phone Dimensions (L*B*H)</th>
+                      <th>Color Box Dimensions (L*B*H)</th>
+                      <th>Inner Carton Dimensions (L*B*H)</th>
+                      <th>Units per Carton</th>
+                      <th>Carton Weight (KG)</th>
                       <th>系列</th>
-                      <th>型号</th>
                       <th>默认零售价</th>
                       <th data-permission-key="view_fob">默认成本价 / FOB</th>
                       <th>默认公式</th>
@@ -445,7 +460,13 @@
 
         <section id="approvalPage" class="page-section">
           <div class="panel">
-            <h3>审批中心</h3>
+            <div class="panel-head">
+              <h3>审批中心</h3>
+              <div class="panel-head-actions">
+                <button class="btn btn-danger role-hidden" id="clearApprovalsDirtyBtn" type="button">清空审批脏数据</button>
+              </div>
+            </div>
+            <div id="approvalAlert"></div>
             <div class="table-wrap">
               <table id="approvalsTable">
                 <thead>
@@ -566,6 +587,7 @@
               <h3>操作日志</h3>
               <div class="panel-head-actions">
                 <span id="logsSummary" class="hint">加载中...</span>
+                <button class="btn btn-danger role-hidden" id="clearLogsBtn" type="button">清空全部日志</button>
                 <button class="btn" id="toggleLogsPageBtn" type="button">收起页面</button>
               </div>
             </div>
@@ -581,6 +603,7 @@
                 <button class="btn btn-primary" id="queryLogsBtn" type="button">查询日志</button>
                 <button class="btn" id="resetLogsBtn" type="button">重置筛选</button>
               </div>
+              <div id="logsAlert"></div>
               <div class="table-wrap">
                 <table id="logsTable">
                   <thead>

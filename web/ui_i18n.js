@@ -64,6 +64,28 @@
     "所属团队": { en: "Team", de: "Team" },
     "申请原因": { en: "Reason", de: "Begründung" },
     "提交账号申请": { en: "Submit Account Request", de: "Kontoantrag senden" },
+    "清空审批脏数据": { en: "Clear Approval Dirty Data", de: "Freigabe-Altdaten leeren" },
+    "清空全部日志": { en: "Clear All Logs", de: "Alle Protokolle leeren" },
+    "确认清空审批中心中的脏数据？关联的报价审批、客户申请、账号申请将一并删除。": {
+      en: "Clear dirty data from the approval center? Related quote approvals, customer requests, and account requests will be deleted together.",
+      de: "Verschmutzte Daten im Freigabecenter leeren? Zugehörige Angebotsfreigaben, Kundenanträge und Kontoanträge werden ebenfalls gelöscht.",
+    },
+    "确认清空全部操作日志？清空后不可恢复。": {
+      en: "Clear all operation logs? This action cannot be undone.",
+      de: "Alle Aktionsprotokolle leeren? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    },
+    "仅超级管理员 harbor 可以删除审批脏数据。": {
+      en: "Only super admin harbor can delete dirty approval data.",
+      de: "Nur der Super-Admin harbor kann verschmutzte Freigabedaten löschen.",
+    },
+    "仅超级管理员 harbor 可以清空审批脏数据。": {
+      en: "Only super admin harbor can clear dirty approval data.",
+      de: "Nur der Super-Admin harbor kann verschmutzte Freigabedaten leeren.",
+    },
+    "仅超级管理员 harbor 可以清空操作日志。": {
+      en: "Only super admin harbor can clear operation logs.",
+      de: "Nur der Super-Admin harbor kann Aktionsprotokolle leeren.",
+    },
     "客户报价管理系统": { en: "Customer Quote Management System", de: "Kundenangebotsverwaltung" },
     "面向手机/消费电子行业的报价、审批与预警后台原型": {
       en: "Quotation, approval, and warning workflow prototype for the mobile and consumer electronics business.",
@@ -71,6 +93,10 @@
     },
     "报价查询": { en: "Quote Query", de: "Angebotsabfrage" },
     "批量查询关键词": { en: "Batch Query Keywords", de: "Stapelabfrage-Schlagwörter" },
+    "批量查询关键词（支持客户 / 产品 / 时间模糊查询）": {
+      en: "Batch Query Keywords (supports fuzzy matching for customer / product / month)",
+      de: "Stapelabfrage-Schlagwörter (unterstützt unscharfe Suche für Kunde / Produkt / Monat)",
+    },
     "价格查询结果": { en: "Price Query Results", de: "Preisabfrage-Ergebnisse" },
     "最新零售价": { en: "Latest Retail Price", de: "Neuester Verkaufspreis" },
     "最新 FOB": { en: "Latest FOB", de: "Neuester FOB" },
@@ -78,6 +104,16 @@
     "批量导入": { en: "Bulk Import", de: "Massenimport" },
     "公式管理": { en: "Formula Management", de: "Formelverwaltung" },
     "产品管理": { en: "Product Management", de: "Produktverwaltung" },
+    "SKU CODE": { en: "SKU CODE", de: "SKU-CODE" },
+    "EAN 13": { en: "EAN 13", de: "EAN 13" },
+    "CPH": { en: "CPH", de: "CPH" },
+    "Net Weight (g)": { en: "Net Weight (g)", de: "Nettogewicht (g)" },
+    "Gross Weight (g)": { en: "Gross Weight (g)", de: "Bruttogewicht (g)" },
+    "Phone Dimensions (L*B*H)": { en: "Phone Dimensions (L*B*H)", de: "Geräteabmessungen (L*B*H)" },
+    "Color Box Dimensions (L*B*H)": { en: "Color Box Dimensions (L*B*H)", de: "Farbkarton-Abmessungen (L*B*H)" },
+    "Inner Carton Dimensions (L*B*H)": { en: "Inner Carton Dimensions (L*B*H)", de: "Innenkarton-Abmessungen (L*B*H)" },
+    "Units per Carton": { en: "Units per Carton", de: "Einheiten pro Karton" },
+    "Carton Weight (KG)": { en: "Carton Weight (KG)", de: "Kartongewicht (KG)" },
     "客户管理": { en: "Customer Management", de: "Kundenverwaltung" },
     "审批中心": { en: "Approval Center", de: "Freigabecenter" },
     "账号管理": { en: "Account Management", de: "Kontoverwaltung" },
@@ -972,6 +1008,11 @@
       en: "Delete log record {target}? This action cannot be undone.",
       de: "Protokolleintrag {target} loeschen? Dieser Vorgang kann nicht rueckgaengig gemacht werden.",
     },
+    "confirm.approvalDirtyDelete": {
+      zh: "确认删除审批脏数据 {target}？删除后不可恢复。",
+      en: "Delete dirty approval data {target}? This action cannot be undone.",
+      de: "Verschmutzte Freigabedaten {target} löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    },
     "alerts.pendingAccountRequest": {
       zh: "该账号已存在待审批申请 {requestNo}。",
       en: "This login ID already has a pending request {requestNo}.",
@@ -1126,6 +1167,21 @@
       zh: "账号申请 {requestNo} 已删除。",
       en: "Account request {requestNo} has been deleted.",
       de: "Der Kontoantrag {requestNo} wurde geloescht.",
+    },
+    "alerts.approvalDirtyDeleted": {
+      zh: "审批脏数据 {target} 已删除。",
+      en: "Dirty approval data {target} has been deleted.",
+      de: "Verschmutzte Freigabedaten {target} wurden gelöscht.",
+    },
+    "alerts.approvalDirtyCleared": {
+      zh: "审批中心脏数据已清空，共处理 {count} 条。",
+      en: "Dirty approval data has been cleared from the approval center. {count} records were processed.",
+      de: "Verschmutzte Freigabedaten wurden aus dem Freigabecenter entfernt. {count} Datensätze wurden verarbeitet.",
+    },
+    "alerts.logsCleared": {
+      zh: "操作日志已清空，共处理 {count} 条。",
+      en: "Operation logs have been cleared. {count} records were processed.",
+      de: "Aktionsprotokolle wurden geleert. {count} Datensätze wurden verarbeitet.",
     },
     "remarks.fromAccountRequest": {
       zh: "来自账号申请 {requestNo}",

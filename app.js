@@ -222,11 +222,21 @@
 
     dom.productEditId = document.getElementById("productEditId");
     dom.productName = document.getElementById("productName");
+    dom.productSkuCode = document.getElementById("productSkuCode");
+    dom.productEan13 = document.getElementById("productEan13");
     dom.productSku = document.getElementById("productSku");
+    dom.productCph = document.getElementById("productCph");
     dom.productSeries = document.getElementById("productSeries");
     dom.productModel = document.getElementById("productModel");
     dom.productVariant = document.getElementById("productVariant");
     dom.productLaunchDate = document.getElementById("productLaunchDate");
+    dom.productNetWeight = document.getElementById("productNetWeight");
+    dom.productGrossWeight = document.getElementById("productGrossWeight");
+    dom.productPhoneDimensions = document.getElementById("productPhoneDimensions");
+    dom.productColorBoxDimensions = document.getElementById("productColorBoxDimensions");
+    dom.productInnerCartonDimensions = document.getElementById("productInnerCartonDimensions");
+    dom.productUnitsPerCarton = document.getElementById("productUnitsPerCarton");
+    dom.productCartonWeight = document.getElementById("productCartonWeight");
     dom.productDefaultMsrp = document.getElementById("productDefaultMsrp");
     dom.productDefaultCost = document.getElementById("productDefaultCost");
     dom.productFormulaId = document.getElementById("productFormulaId");
@@ -268,6 +278,8 @@
     dom.customerRequestsTableBody = document.querySelector("#customerRequestsTable tbody");
     dom.customersTableBody = document.querySelector("#customersTable tbody");
 
+    dom.clearApprovalsDirtyBtn = document.getElementById("clearApprovalsDirtyBtn");
+    dom.approvalAlert = document.getElementById("approvalAlert");
     dom.approvalsTableBody = document.querySelector("#approvalsTable tbody");
 
     dom.accountEditId = document.getElementById("accountEditId");
@@ -297,6 +309,8 @@
     dom.logDateTo = document.getElementById("logDateTo");
     dom.queryLogsBtn = document.getElementById("queryLogsBtn");
     dom.resetLogsBtn = document.getElementById("resetLogsBtn");
+    dom.clearLogsBtn = document.getElementById("clearLogsBtn");
+    dom.logsAlert = document.getElementById("logsAlert");
     dom.toggleLogsPageBtn = document.getElementById("toggleLogsPageBtn");
     dom.logsPageContent = document.getElementById("logsPageContent");
     dom.logsSummary = document.getElementById("logsSummary");
@@ -397,6 +411,7 @@
     dom.customersTableBody?.addEventListener("click", onCustomersTableAction);
 
     dom.approvalsTableBody?.addEventListener("click", onApprovalsTableAction);
+    dom.clearApprovalsDirtyBtn?.addEventListener("click", clearApprovalDirtyData);
     dom.saveAccountBtn?.addEventListener("click", onSaveAccount);
     dom.accountRole?.addEventListener("change", onAccountRoleChange);
     dom.resetAccountBtn?.addEventListener("click", () => {
@@ -411,6 +426,7 @@
     });
     dom.queryLogsBtn?.addEventListener("click", onQueryLogs);
     dom.resetLogsBtn?.addEventListener("click", onResetLogs);
+    dom.clearLogsBtn?.addEventListener("click", clearAllLogs);
     dom.toggleLogsPageBtn?.addEventListener("click", onToggleLogsPage);
     dom.logsTableBody?.addEventListener("click", onLogsTableAction);
   }
@@ -523,12 +539,22 @@
       products: [
         {
           id: "prod_001",
+          sku_code: "",
+          ean_13: "",
           sku: "FINDX8-512-BLK",
+          cph: "",
           product_name: "Find X8",
           product_series: "Find",
           product_model: "X8",
           variant: "12+512G 黑色",
           launch_date: "2026-01-10",
+          net_weight_g: "",
+          gross_weight_g: "",
+          phone_dimensions: "",
+          color_box_dimensions: "",
+          inner_carton_dimensions: "",
+          units_per_carton: "",
+          carton_weight_kg: "",
           default_msrp: 899,
           default_cost: 622,
           default_formula_id: "formula_001",
@@ -539,12 +565,22 @@
         },
         {
           id: "prod_002",
+          sku_code: "",
+          ean_13: "",
           sku: "RENO14-256-SLV",
+          cph: "",
           product_name: "Reno 14",
           product_series: "Reno",
           product_model: "14",
           variant: "12+256G 银色",
           launch_date: "2026-02-18",
+          net_weight_g: "",
+          gross_weight_g: "",
+          phone_dimensions: "",
+          color_box_dimensions: "",
+          inner_carton_dimensions: "",
+          units_per_carton: "",
+          carton_weight_kg: "",
           default_msrp: 529,
           default_cost: 364,
           default_formula_id: "formula_001",
@@ -778,10 +814,29 @@
     };
   }
 
+  function normalizeOptionalNumber(value) {
+    const text = String(value == null ? "" : value).trim();
+    if (!text) {
+      return "";
+    }
+    const numeric = Number(text);
+    return Number.isFinite(numeric) ? roundMoney(numeric) : "";
+  }
+
   function normalizeProductRecord(product) {
     return {
       ...product,
       status: product?.status || "ACTIVE",
+      sku_code: String(product?.sku_code || "").trim(),
+      ean_13: String(product?.ean_13 || "").trim(),
+      cph: String(product?.cph || "").trim(),
+      net_weight_g: normalizeOptionalNumber(product?.net_weight_g),
+      gross_weight_g: normalizeOptionalNumber(product?.gross_weight_g),
+      phone_dimensions: String(product?.phone_dimensions || "").trim(),
+      color_box_dimensions: String(product?.color_box_dimensions || "").trim(),
+      inner_carton_dimensions: String(product?.inner_carton_dimensions || "").trim(),
+      units_per_carton: normalizeOptionalNumber(product?.units_per_carton),
+      carton_weight_kg: normalizeOptionalNumber(product?.carton_weight_kg),
       default_msrp: roundMoney(product?.default_msrp || 0),
       default_cost: roundMoney(product?.default_cost || 0),
       default_formula_id: product?.default_formula_id || "",
@@ -1053,9 +1108,16 @@
     renderApprovalsTable();
     renderAccountsPage();
     renderLogsPage();
+    syncDirtyDataControlVisibility();
     applyManagementIsolation();
     applyPresentationIsolation();
     syncLanguage();
+  }
+
+  function syncDirtyDataControlVisibility(operator = getCurrentOperator()) {
+    const visible = canManageAccounts(operator);
+    dom.clearApprovalsDirtyBtn?.classList.toggle("role-hidden", !visible);
+    dom.clearLogsBtn?.classList.toggle("role-hidden", !visible);
   }
 
   function refreshQuoteLifecycleStatuses(referenceMonth = getCurrentMonthValue()) {
@@ -1279,57 +1341,41 @@
   }
 
   function renderQuoteQueryOptions() {
+    const publishedQuotes = state.data.quotes.filter((item) => String(item.approval_status || "").toUpperCase() === "APPROVED");
     populateChoiceOptions(dom.queryCustomerName, buildSimpleOptionItems([
-      ...state.data.customers.map((item) => item.customer_name),
-      ...state.data.quotes.map((item) => item.customer_name),
+      ...getActiveCustomers().map((item) => item.customer_name),
+      ...publishedQuotes.map((item) => item.customer_name),
     ]));
     populateChoiceOptions(dom.queryCustomerCode, buildSimpleOptionItems([
-      ...state.data.customers.map((item) => item.customer_code),
-      ...state.data.quotes.map((item) => item.customer_code),
+      ...getActiveCustomers().map((item) => item.customer_code),
+      ...publishedQuotes.map((item) => item.customer_code),
     ]));
     populateChoiceOptions(dom.querySku, buildSimpleOptionItems([
-      ...state.data.products.map((item) => item.sku),
-      ...state.data.quotes.map((item) => item.sku),
+      ...getActiveProducts().map((item) => item.sku),
+      ...publishedQuotes.map((item) => item.sku),
     ]));
     populateChoiceOptions(dom.queryProductName, buildSimpleOptionItems([
-      ...state.data.products.map((item) => item.product_name),
-      ...state.data.quotes.map((item) => item.product_name),
+      ...getActiveProducts().map((item) => item.product_name),
+      ...publishedQuotes.map((item) => item.product_name),
     ]));
     populateChoiceOptions(dom.queryProductSeries, buildSimpleOptionItems([
-      ...state.data.products.map((item) => item.product_series),
-      ...state.data.quotes.map((item) => item.product_series),
+      ...getActiveProducts().map((item) => item.product_series),
+      ...publishedQuotes.map((item) => item.product_series),
     ]));
     populateChoiceOptions(
       dom.queryEffectiveMonth,
       buildEffectiveMonthOptionItems()
     );
-    populateChoiceOptions(
-      dom.queryQuoteStatus,
-      [
-        { value: "PENDING_APPROVAL", label: tr("待审批") },
-        { value: "PENDING_EFFECTIVE", label: tr("待生效") },
-        { value: "ACTIVE", label: tr("已生效") },
-        { value: "REJECTED_PENDING_EDIT", label: tr("驳回待修改") },
-        { value: "REJECTED", label: tr("已驳回") },
-      ]
-    );
-    populateChoiceOptions(
-      dom.queryApprovalStatus,
-      [
-        { value: "IN_PROGRESS", label: tr("审批中") },
-        { value: "APPROVED", label: tr("已批准") },
-        { value: "REJECTED", label: tr("已驳回") },
-      ]
-    );
     populateChoiceOptions(dom.queryFormulaVersion, buildSimpleOptionItems([
       ...state.data.formulas.map((item) => item.formula_version),
-      ...state.data.quotes.map((item) => item.formula_version),
+      ...publishedQuotes.map((item) => item.formula_version),
     ]));
   }
 
   function buildEffectiveMonthOptionItems() {
     const monthValues = new Set(
       state.data.quotes
+        .filter((item) => String(item.approval_status || "").toUpperCase() === "APPROVED")
         .map((item) => normalizeMonthValue(item.effective_month))
         .filter(Boolean)
     );
@@ -2122,9 +2168,18 @@
     const filters = Object.fromEntries(Array.from(formData.entries()).map(([key, value]) => [key, String(value || "").trim()]));
     const batchTokens = parseBatchQueryKeywords(filters.batch_keywords);
     const referenceMonth = getQuoteReferenceMonth(filters);
+    const activeProducts = getActiveProducts();
+    const publishedProductIds = new Set(activeProducts.map((item) => item.id));
+    const publishedProductSkus = new Set(activeProducts.map((item) => String(item.sku || "").toUpperCase()));
     const records = state.data.quotes
       .slice()
       .filter((quote) => {
+        if (String(quote.approval_status || "").toUpperCase() !== "APPROVED") {
+          return false;
+        }
+        if (!publishedProductIds.has(quote.product_id) && !publishedProductSkus.has(String(quote.sku || "").toUpperCase())) {
+          return false;
+        }
         if (filters.customer_name && !quote.customer_name.toLowerCase().includes(filters.customer_name.toLowerCase())) {
           return false;
         }
@@ -2144,17 +2199,20 @@
           return false;
         }
         if (batchTokens.length > 0) {
-          const haystacks = [
+          const haystack = [
             quote.quote_no,
             quote.customer_name,
             quote.customer_code,
             quote.sku,
             quote.product_name,
             quote.product_series,
+            quote.effective_month,
+            normalizeMonthValue(quote.effective_month),
           ]
             .map((value) => String(value || "").toLowerCase())
-            .filter(Boolean);
-          if (!batchTokens.some((token) => haystacks.some((value) => value.includes(token)))) {
+            .filter(Boolean)
+            .join(" ");
+          if (!batchTokens.every((token) => haystack.includes(token))) {
             return false;
           }
         }
@@ -2171,12 +2229,6 @@
       if (filters.effective_month && normalizeMonthValue(quote.effective_month) !== normalizeMonthValue(filters.effective_month)) {
         return false;
       }
-      if (filters.approval_status && String(quote.approval_status || "").toUpperCase() !== String(filters.approval_status || "").toUpperCase()) {
-        return false;
-      }
-      if (filters.quote_status && getQuoteLifecycleStatus(quote, referenceMonth) !== String(filters.quote_status || "").toUpperCase()) {
-        return false;
-      }
       return true;
     });
     return pickLatestPriceQuotes(exactRecords);
@@ -2186,7 +2238,7 @@
     return Array.from(
       new Set(
         String(value || "")
-          .split(/[\n,，;；\t]+/)
+          .split(/[\s,，;；]+/)
           .map((item) => item.trim().toLowerCase())
           .filter(Boolean)
       )
@@ -2216,11 +2268,7 @@
   }
 
   function shouldUseQuoteCarryForwardLookup(filters = {}) {
-    const approvalStatus = String(filters.approval_status || "").toUpperCase();
-    const quoteStatus = String(filters.quote_status || "").toUpperCase();
-    const canUseApprovedFlow = !approvalStatus || approvalStatus === "APPROVED";
-    const canUseQuoteFlow = !quoteStatus || quoteStatus === "ACTIVE";
-    return canUseApprovedFlow && canUseQuoteFlow;
+    return true;
   }
 
   function getQuoteReferenceMonth(filters = {}) {
@@ -2278,9 +2326,8 @@
     if (!dom.quotesTableBody) {
       return;
     }
-    const referenceMonth = getQuoteReferenceMonthFromDom();
     if (records.length === 0) {
-      dom.quotesTableBody.innerHTML = `<tr><td colspan="14">${escapeHtml(tr("暂无价格结果"))}</td></tr>`;
+      dom.quotesTableBody.innerHTML = `<tr><td colspan="12">${escapeHtml(tr("暂无价格结果"))}</td></tr>`;
       return;
     }
     dom.quotesTableBody.innerHTML = records
@@ -2298,8 +2345,6 @@
             <td data-permission-key="view_gross_profit">${escapeHtml(renderProtectedMoney(quote.gross_profit, CORE_PERMISSION_KEYS.VIEW_GROSS_PROFIT))}</td>
             <td data-permission-key="view_gross_margin">${escapeHtml(renderProtectedPercent(quote.gross_margin, CORE_PERMISSION_KEYS.VIEW_GROSS_MARGIN))}</td>
             <td>${escapeHtml(quote.effective_month)}</td>
-            <td>${renderStatusBadge(quote.approval_status)}</td>
-            <td>${renderStatusBadge(getQuoteLifecycleStatus(quote, referenceMonth))}</td>
             <td>${escapeHtml(formatDateTime(quote.updated_at || quote.created_at))}</td>
           </tr>
         `
@@ -2910,11 +2955,21 @@
     const product = {
       id,
       product_name: String(dom.productName?.value || "").trim(),
+      sku_code: String(dom.productSkuCode?.value || "").trim(),
+      ean_13: String(dom.productEan13?.value || "").trim(),
       sku: String(dom.productSku?.value || "").trim().toUpperCase(),
+      cph: String(dom.productCph?.value || "").trim(),
       product_series: String(dom.productSeries?.value || "").trim(),
       product_model: String(dom.productModel?.value || "").trim(),
       variant: String(dom.productVariant?.value || "").trim(),
       launch_date: String(dom.productLaunchDate?.value || "").trim(),
+      net_weight_g: normalizeOptionalNumber(dom.productNetWeight?.value),
+      gross_weight_g: normalizeOptionalNumber(dom.productGrossWeight?.value),
+      phone_dimensions: String(dom.productPhoneDimensions?.value || "").trim(),
+      color_box_dimensions: String(dom.productColorBoxDimensions?.value || "").trim(),
+      inner_carton_dimensions: String(dom.productInnerCartonDimensions?.value || "").trim(),
+      units_per_carton: normalizeOptionalNumber(dom.productUnitsPerCarton?.value),
+      carton_weight_kg: normalizeOptionalNumber(dom.productCartonWeight?.value),
       default_msrp: roundMoney(dom.productDefaultMsrp?.value || 0),
       default_cost: roundMoney(dom.productDefaultCost?.value || 0),
       default_formula_id: String(dom.productFormulaId?.value || "").trim(),
@@ -2949,11 +3004,21 @@
   function resetProductForm() {
     setInputValue(dom.productEditId, "");
     setInputValue(dom.productName, "");
+    setInputValue(dom.productSkuCode, "");
+    setInputValue(dom.productEan13, "");
     setInputValue(dom.productSku, "");
+    setInputValue(dom.productCph, "");
     setInputValue(dom.productSeries, "");
     setInputValue(dom.productModel, "");
     setInputValue(dom.productVariant, "");
     setInputValue(dom.productLaunchDate, "");
+    setInputValue(dom.productNetWeight, "");
+    setInputValue(dom.productGrossWeight, "");
+    setInputValue(dom.productPhoneDimensions, "");
+    setInputValue(dom.productColorBoxDimensions, "");
+    setInputValue(dom.productInnerCartonDimensions, "");
+    setInputValue(dom.productUnitsPerCarton, "");
+    setInputValue(dom.productCartonWeight, "");
     setInputValue(dom.productDefaultMsrp, "");
     setInputValue(dom.productDefaultCost, "");
     if (dom.productFormulaId && getActiveFormulas()[0]) {
@@ -2975,9 +3040,18 @@
         return `
           <tr>
             <td>${escapeHtml(product.product_name)}</td>
+            <td>${escapeHtml(product.sku_code || "-")}</td>
+            <td>${escapeHtml(product.ean_13 || "-")}</td>
             <td>${escapeHtml(product.sku)}</td>
+            <td>${escapeHtml(product.cph || "-")}</td>
+            <td>${escapeHtml(product.net_weight_g === "" ? "-" : String(product.net_weight_g))}</td>
+            <td>${escapeHtml(product.gross_weight_g === "" ? "-" : String(product.gross_weight_g))}</td>
+            <td>${escapeHtml(product.phone_dimensions || "-")}</td>
+            <td>${escapeHtml(product.color_box_dimensions || "-")}</td>
+            <td>${escapeHtml(product.inner_carton_dimensions || "-")}</td>
+            <td>${escapeHtml(product.units_per_carton === "" ? "-" : String(product.units_per_carton))}</td>
+            <td>${escapeHtml(product.carton_weight_kg === "" ? "-" : String(product.carton_weight_kg))}</td>
             <td>${escapeHtml(product.product_series)}</td>
-            <td>${escapeHtml(product.product_model)}</td>
             <td>${escapeHtml(formatMoney(product.default_msrp))}</td>
             <td data-permission-key="view_fob">${escapeHtml(renderProtectedMoney(product.default_cost, CORE_PERMISSION_KEYS.VIEW_FOB))}</td>
             <td>${escapeHtml(formula?.formula_name || "-")}</td>
@@ -3011,11 +3085,21 @@
     if (button.dataset.productAction === "edit") {
       setInputValue(dom.productEditId, product.id);
       setInputValue(dom.productName, product.product_name);
+      setInputValue(dom.productSkuCode, product.sku_code || "");
+      setInputValue(dom.productEan13, product.ean_13 || "");
       setInputValue(dom.productSku, product.sku);
+      setInputValue(dom.productCph, product.cph || "");
       setInputValue(dom.productSeries, product.product_series);
       setInputValue(dom.productModel, product.product_model);
       setInputValue(dom.productVariant, product.variant);
       setInputValue(dom.productLaunchDate, product.launch_date);
+      setInputValue(dom.productNetWeight, product.net_weight_g === "" ? "" : product.net_weight_g);
+      setInputValue(dom.productGrossWeight, product.gross_weight_g === "" ? "" : product.gross_weight_g);
+      setInputValue(dom.productPhoneDimensions, product.phone_dimensions || "");
+      setInputValue(dom.productColorBoxDimensions, product.color_box_dimensions || "");
+      setInputValue(dom.productInnerCartonDimensions, product.inner_carton_dimensions || "");
+      setInputValue(dom.productUnitsPerCarton, product.units_per_carton === "" ? "" : product.units_per_carton);
+      setInputValue(dom.productCartonWeight, product.carton_weight_kg === "" ? "" : product.carton_weight_kg);
       setInputValue(dom.productDefaultMsrp, product.default_msrp);
       setInputValue(dom.productDefaultCost, product.default_cost);
       if (dom.productFormulaId) {
@@ -4089,6 +4173,7 @@
       return;
     }
     const operator = getCurrentOperator();
+    syncDirtyDataControlVisibility(operator);
     const rows = buildApprovalCenterRows(operator);
     if (rows.length === 0) {
       dom.approvalsTableBody.innerHTML = `<tr><td colspan="8">${escapeHtml(tr("暂无审批数据"))}</td></tr>`;
@@ -4153,6 +4238,7 @@
                 ${row.scope === "quote" && row.approvalStatus === "APPROVED" ? `<button class="btn" type="button" data-approval-action="mail" data-approval-scope="quote" data-approval-id="${escapeHtml(row.id)}">${escapeHtml(tr("下载价格表"))}</button>` : ""}
                 ${canProcess ? `<button class="btn" type="button" data-approval-action="approve" data-approval-scope="${escapeHtml(row.scope)}" data-approval-id="${escapeHtml(row.id)}">批准</button>` : ""}
                 ${canProcess ? `<button class="btn btn-danger" type="button" data-approval-action="reject" data-approval-scope="${escapeHtml(row.scope)}" data-approval-id="${escapeHtml(row.id)}">驳回</button>` : ""}
+                ${canManageAccounts(operator) ? `<button class="btn btn-danger" type="button" data-approval-action="delete" data-approval-scope="${escapeHtml(row.scope)}" data-approval-id="${escapeHtml(row.id)}">删除</button>` : ""}
               </div>
             </td>
           </tr>
@@ -4168,6 +4254,10 @@
     }
     const action = String(button.dataset.approvalAction || "");
     const scope = String(button.dataset.approvalScope || "quote");
+    if (action === "delete") {
+      deleteApprovalDirtyRecord(scope, String(button.dataset.approvalId || ""), getCurrentOperator());
+      return;
+    }
     if (scope === "customer") {
       const request = getCustomerRequestById(button.dataset.approvalId);
       if (!request) {
@@ -4226,6 +4316,108 @@
     processApproval(approval.id, action, getCurrentOperator(), "", false);
     persistData();
     renderAll();
+  }
+
+  function deleteApprovalDirtyRecord(scope, recordId, operator = getCurrentOperator()) {
+    if (!canManageAccounts(operator)) {
+      setAlert(dom.approvalAlert, tr("仅超级管理员 harbor 可以删除审批脏数据。"), "danger");
+      return;
+    }
+    if (!recordId) {
+      return;
+    }
+
+    if (scope === "quote") {
+      const approval = getApprovalById(recordId);
+      if (!approval) {
+        return;
+      }
+      const quote = getQuoteById(approval.quote_id);
+      const target = quote?.quote_no || approval.approval_no;
+      const confirmed = window.confirm(tt("confirm.approvalDirtyDelete", { target }));
+      if (!confirmed) {
+        return;
+      }
+      removeItem(state.data.approvals, approval.id);
+      if (quote) {
+        removeItem(state.data.quotes, quote.id);
+        if (state.ui.activeQuoteId === quote.id) {
+          state.ui.activeQuoteId = "";
+        }
+        if (state.ui.detailNotice?.quoteId === quote.id) {
+          state.ui.detailNotice = null;
+        }
+      }
+      persistData();
+      renderAll();
+      setAlert(dom.approvalAlert, tt("alerts.approvalDirtyDeleted", { target }), "success");
+      return;
+    }
+
+    if (scope === "customer") {
+      const request = getCustomerRequestById(recordId);
+      if (!request) {
+        return;
+      }
+      const target = request.request_no;
+      const confirmed = window.confirm(tt("confirm.approvalDirtyDelete", { target }));
+      if (!confirmed) {
+        return;
+      }
+      removeItem(state.data.customer_requests, request.id);
+      if (state.ui.activeCustomerRequestId === request.id) {
+        state.ui.activeCustomerRequestId = "";
+      }
+      persistData();
+      renderAll();
+      setAlert(dom.approvalAlert, tt("alerts.approvalDirtyDeleted", { target }), "success");
+      return;
+    }
+
+    if (scope === "account") {
+      const request = getAccountRequestById(recordId);
+      if (!request) {
+        return;
+      }
+      const target = request.request_no;
+      const confirmed = window.confirm(tt("confirm.approvalDirtyDelete", { target }));
+      if (!confirmed) {
+        return;
+      }
+      removeItem(state.data.account_requests, request.id);
+      persistData();
+      renderAll();
+      setAlert(dom.approvalAlert, tt("alerts.approvalDirtyDeleted", { target }), "success");
+    }
+  }
+
+  function clearApprovalDirtyData(operator = getCurrentOperator()) {
+    if (!canManageAccounts(operator)) {
+      setAlert(dom.approvalAlert, tr("仅超级管理员 harbor 可以清空审批脏数据。"), "danger");
+      return;
+    }
+    const total = state.data.approvals.length + state.data.customer_requests.length + state.data.account_requests.length;
+    const confirmed = window.confirm(tr("确认清空审批中心中的脏数据？关联的报价审批、客户申请、账号申请将一并删除。"));
+    if (!confirmed) {
+      return;
+    }
+    const approvalQuoteIds = new Set(state.data.approvals.map((item) => item.quote_id).filter(Boolean));
+    state.data.approvals = [];
+    state.data.customer_requests = [];
+    state.data.account_requests = [];
+    if (approvalQuoteIds.size > 0) {
+      state.data.quotes = state.data.quotes.filter((quote) => !approvalQuoteIds.has(quote.id));
+      if (state.ui.activeQuoteId && approvalQuoteIds.has(state.ui.activeQuoteId)) {
+        state.ui.activeQuoteId = "";
+      }
+      if (state.ui.detailNotice?.quoteId && approvalQuoteIds.has(state.ui.detailNotice.quoteId)) {
+        state.ui.detailNotice = null;
+      }
+    }
+    state.ui.activeCustomerRequestId = "";
+    persistData();
+    renderAll();
+    setAlert(dom.approvalAlert, tt("alerts.approvalDirtyCleared", { count: total }), "success");
   }
 
   function buildApprovalCenterRows(operator = getCurrentOperator()) {
@@ -4494,6 +4686,7 @@
   }
 
   function renderLogsPage() {
+    syncDirtyDataControlVisibility();
     renderLogFilterOptions();
     renderLogsPageCollapseState();
     renderLogsTable();
@@ -4646,6 +4839,30 @@
       renderLogsPage();
       return;
     }
+  }
+
+  function clearAllLogs(operator = getCurrentOperator()) {
+    if (!canManageAccounts(operator)) {
+      setAlert(dom.logsAlert, tr("仅超级管理员 harbor 可以清空操作日志。"), "danger");
+      return;
+    }
+    const total = state.data.logs.length;
+    const confirmed = window.confirm(tr("确认清空全部操作日志？清空后不可恢复。"));
+    if (!confirmed) {
+      return;
+    }
+    state.data.logs = [];
+    state.ui.expandedLogIds = [];
+    state.ui.logFilters = {
+      actionType: "",
+      targetKeyword: "",
+      operatorName: "",
+      dateFrom: "",
+      dateTo: "",
+    };
+    persistData();
+    renderLogsPage();
+    setAlert(dom.logsAlert, tt("alerts.logsCleared", { count: total }), "success");
   }
 
   function renderLogSummaryPreview(log) {
@@ -5592,11 +5809,21 @@
     return {
       id: buildId("product"),
       product_name: String(row.product_name || row.sku || "待补充产品").trim(),
+      sku_code: String(row.sku_code || "").trim(),
+      ean_13: String(row.ean_13 || "").trim(),
       sku: String(row.sku || buildBusinessNo("SKU", state.data.products)).trim().toUpperCase(),
+      cph: String(row.cph || "").trim(),
       product_series: String(row.product_series || "未分类").trim(),
       product_model: String(row.product_model || "").trim(),
       variant: String(row.variant || "").trim(),
       launch_date: "",
+      net_weight_g: normalizeOptionalNumber(row.net_weight_g),
+      gross_weight_g: normalizeOptionalNumber(row.gross_weight_g),
+      phone_dimensions: String(row.phone_dimensions || "").trim(),
+      color_box_dimensions: String(row.color_box_dimensions || "").trim(),
+      inner_carton_dimensions: String(row.inner_carton_dimensions || "").trim(),
+      units_per_carton: normalizeOptionalNumber(row.units_per_carton),
+      carton_weight_kg: normalizeOptionalNumber(row.carton_weight_kg),
       default_msrp: roundMoney(row.rrp ?? row.msrp ?? 0),
       default_cost: roundMoney(row.cost_price || 0),
       default_formula_id: formulaId || getActiveFormulas()[0]?.id || "",
