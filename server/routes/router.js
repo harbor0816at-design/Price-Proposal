@@ -71,7 +71,7 @@ function buildCustomerPayload(body = {}) {
     default_discount: toNumber(body.default_discount, 0.8),
     default_rebate_value: toNumber(body.default_rebate_value, 0),
     default_rebate_type: normalizeText(body.default_rebate_type || "AMOUNT").toUpperCase(),
-    default_approver_id: normalizeText(body.default_approver_id || "u_mgr_01"),
+    default_approver_id: normalizeText(body.default_approver_id || "u_admin_01"),
     status: normalizeText(body.status || "ACTIVE"),
     remark: normalizeText(body.remark),
     created_at: body.created_at || now,

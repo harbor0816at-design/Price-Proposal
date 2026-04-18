@@ -22,6 +22,12 @@
   const DEFAULT_FORMULA_EXPRESSION = "((MSRP / (1 + VAT)) * (1 - FrontMargin) * (1 - DB - CustomerMargin - ServiceFee - MKTFundingRate)) - STKbuffer";
   const CUSTOMER_QUOTE_SHEET_VERSION = 1;
   const TEMP_ACCOUNT_PASSWORD = "Welcome@123";
+  const PRIMARY_ADMIN_ID = "u_admin_01";
+  const PRIMARY_ADMIN_USER_NAME = "harbor";
+  const PRIMARY_ADMIN_PASSWORD = "harbor123";
+  const PRIMARY_ADMIN_DISPLAY_NAME = "Harbor";
+  const LEGACY_SEED_USER_IDS = new Set(["u_sales_01", "u_mgr_01", "u_business_01", "u_finance_01"]);
+  const LEGACY_SEED_USER_NAMES = new Set(["li.sales", "wang.manager", "zhou.business", "liu.finance", "sun.admin"]);
   const ADMIN_PAGE_IDS = ["quoteQueryPage", "quoteCreatePage", "importPage", "formulaPage", "productPage", "customerPage", "approvalPage", "accountPage", "logPage"];
   const ADMIN_ROLES = new Set(["BUSINESS_HEAD", "FINANCE_HEAD", "SYSTEM_ADMIN"]);
   const CORE_PERMISSION_KEYS = {
@@ -422,96 +428,48 @@
     }
   }
 
+  function normalizeAccountName(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function buildPrimaryAdministrator(now = nowIso()) {
+    return {
+      id: PRIMARY_ADMIN_ID,
+      user_name: PRIMARY_ADMIN_USER_NAME,
+      display_name: PRIMARY_ADMIN_DISPLAY_NAME,
+      role: "SYSTEM_ADMIN",
+      permissions: buildDefaultPermissionsForRole("SYSTEM_ADMIN"),
+      team: "系统管理",
+      status: "ACTIVE",
+      password: PRIMARY_ADMIN_PASSWORD,
+      account_origin: "SYSTEM_SEED",
+      approved_by: "system",
+      approved_by_name: "系统初始化",
+      last_login_at: "",
+      remark: "系统预置超级管理员账号",
+      created_at: now,
+      updated_at: now,
+    };
+  }
+
+  function isLegacySeedAccount(user) {
+    if (!user) {
+      return false;
+    }
+    return (
+      String(user.account_origin || "").toUpperCase() === "SYSTEM_SEED" &&
+      (LEGACY_SEED_USER_IDS.has(String(user.id || "")) || LEGACY_SEED_USER_NAMES.has(normalizeAccountName(user.user_name)))
+    );
+  }
+
+  function isPrimaryAdministratorUser(user) {
+    return normalizeAccountName(user?.user_name) === PRIMARY_ADMIN_USER_NAME && String(user?.role || "") === "SYSTEM_ADMIN";
+  }
+
   function buildDefaultData() {
     const now = nowIso();
     return {
-      users: [
-        {
-          id: "u_sales_01",
-          user_name: "li.sales",
-          display_name: "李销售",
-          role: "SALES_ENTRY",
-          permissions: buildDefaultPermissionsForRole("SALES_ENTRY"),
-          team: "华东业务一部",
-          status: "ACTIVE",
-          password: "Pass@123",
-          account_origin: "SYSTEM_SEED",
-          approved_by: "system",
-          approved_by_name: "系统初始化",
-          last_login_at: "",
-          remark: "客户经理演示账号",
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          id: "u_mgr_01",
-          user_name: "wang.manager",
-          display_name: "王电商",
-          role: "SALES_MANAGER",
-          permissions: buildDefaultPermissionsForRole("SALES_MANAGER"),
-          team: "华东业务一部",
-          status: "ACTIVE",
-          password: "Pass@123",
-          account_origin: "SYSTEM_SEED",
-          approved_by: "system",
-          approved_by_name: "系统初始化",
-          last_login_at: "",
-          remark: "电商负责人演示账号",
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          id: "u_business_01",
-          user_name: "zhou.business",
-          display_name: "周总经理",
-          role: "BUSINESS_HEAD",
-          permissions: buildDefaultPermissionsForRole("BUSINESS_HEAD"),
-          team: "经营管理部",
-          status: "ACTIVE",
-          password: "Pass@123",
-          account_origin: "SYSTEM_SEED",
-          approved_by: "system",
-          approved_by_name: "系统初始化",
-          last_login_at: "",
-          remark: "总经理演示账号",
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          id: "u_finance_01",
-          user_name: "liu.finance",
-          display_name: "刘财务总监",
-          role: "FINANCE_HEAD",
-          permissions: buildDefaultPermissionsForRole("FINANCE_HEAD"),
-          team: "财务中心",
-          status: "ACTIVE",
-          password: "Pass@123",
-          account_origin: "SYSTEM_SEED",
-          approved_by: "system",
-          approved_by_name: "系统初始化",
-          last_login_at: "",
-          remark: "财务总监演示账号",
-          created_at: now,
-          updated_at: now,
-        },
-        {
-          id: "u_admin_01",
-          user_name: "sun.admin",
-          display_name: "孙管理员",
-          role: "SYSTEM_ADMIN",
-          permissions: buildDefaultPermissionsForRole("SYSTEM_ADMIN"),
-          team: "信息管理部",
-          status: "ACTIVE",
-          password: "Admin@123",
-          account_origin: "SYSTEM_SEED",
-          approved_by: "system",
-          approved_by_name: "系统初始化",
-          last_login_at: "",
-          remark: "超级管理员演示账号",
-          created_at: now,
-          updated_at: now,
-        },
-      ],
+      users: [buildPrimaryAdministrator(now)],
       customers: [
         {
           id: "cust_001",
@@ -529,7 +487,7 @@
           default_front_margin: 0.005,
           default_vat: 0.2,
           default_ura: 5.5,
-          default_approver_id: "u_mgr_01",
+          default_approver_id: PRIMARY_ADMIN_ID,
           status: "ACTIVE",
           remark: "重点 KA 客户",
           created_at: now,
@@ -551,7 +509,7 @@
           default_front_margin: 0.006,
           default_vat: 0.2,
           default_ura: 5,
-          default_approver_id: "u_mgr_01",
+          default_approver_id: PRIMARY_ADMIN_ID,
           status: "ACTIVE",
           remark: "线上渠道客户",
           created_at: now,
@@ -632,26 +590,142 @@
     };
   }
 
+  function normalizeUsers(users, defaults) {
+    const normalizedUsers = filterInactiveMasterRecords(
+      users.map((user) => {
+        const fallback = defaults.find((item) => item.id === user.id || item.user_name === user.user_name);
+        return {
+          ...(fallback || {}),
+          ...user,
+          permissions: normalizeUserPermissions(user.role || fallback?.role || "", user.permissions || fallback?.permissions),
+          status: user.status || fallback?.status || "ACTIVE",
+          password: user.password || fallback?.password || TEMP_ACCOUNT_PASSWORD,
+          account_origin: user.account_origin || fallback?.account_origin || "DIRECT_CREATE",
+          approved_by: user.approved_by || fallback?.approved_by || "",
+          approved_by_name: user.approved_by_name || fallback?.approved_by_name || "",
+          last_login_at: user.last_login_at || fallback?.last_login_at || "",
+          remark: user.remark || fallback?.remark || "",
+        };
+      })
+    );
+
+    const primarySource =
+      normalizedUsers.find(
+        (item) =>
+          item.id === PRIMARY_ADMIN_ID ||
+          normalizeAccountName(item.user_name) === PRIMARY_ADMIN_USER_NAME ||
+          normalizeAccountName(item.user_name) === "sun.admin"
+      ) || null;
+
+    const primaryAdmin = {
+      ...buildPrimaryAdministrator(primarySource?.created_at || nowIso()),
+      ...(primarySource || {}),
+      id: PRIMARY_ADMIN_ID,
+      user_name: PRIMARY_ADMIN_USER_NAME,
+      display_name: PRIMARY_ADMIN_DISPLAY_NAME,
+      role: "SYSTEM_ADMIN",
+      permissions: buildDefaultPermissionsForRole("SYSTEM_ADMIN"),
+      status: "ACTIVE",
+      password: PRIMARY_ADMIN_PASSWORD,
+      team: "系统管理",
+      remark: "系统预置超级管理员账号",
+    };
+
+    const remainingUsers = normalizedUsers.filter(
+      (item) =>
+        item !== primarySource &&
+        !isLegacySeedAccount(item) &&
+        item.id !== PRIMARY_ADMIN_ID &&
+        normalizeAccountName(item.user_name) !== PRIMARY_ADMIN_USER_NAME
+    );
+
+    return [primaryAdmin].concat(remainingUsers);
+  }
+
+  function migratePrimaryAdministratorReferences(data) {
+    const primaryAdmin = data.users.find((item) => isPrimaryAdministratorUser(item)) || buildPrimaryAdministrator();
+    const validUserIds = new Set(data.users.map((item) => item.id));
+    const needsPrimaryAdminFallback = (userId) => !userId || !validUserIds.has(userId) || LEGACY_SEED_USER_IDS.has(String(userId || ""));
+
+    return {
+      ...data,
+      quotes: data.quotes.map((quote) =>
+        needsPrimaryAdminFallback(quote.created_by)
+          ? {
+              ...quote,
+              created_by: primaryAdmin.id,
+              created_by_name: primaryAdmin.display_name,
+            }
+          : quote
+      ),
+      approvals: data.approvals.map((approval) => {
+        const nodes = Array.isArray(approval.nodes)
+          ? approval.nodes.map((node) =>
+              needsPrimaryAdminFallback(node.approver_id)
+                ? {
+                    ...node,
+                    approver_id: primaryAdmin.id,
+                    approver_name: primaryAdmin.display_name,
+                  }
+                : node
+            )
+          : [];
+        const currentNode = nodes.find((item) => item.node_order === approval.current_node) || nodes[0] || null;
+        return {
+          ...approval,
+          initiated_by: needsPrimaryAdminFallback(approval.initiated_by) ? primaryAdmin.id : approval.initiated_by,
+          initiated_by_name: needsPrimaryAdminFallback(approval.initiated_by) ? primaryAdmin.display_name : approval.initiated_by_name,
+          approver_id:
+            String(approval.approval_status || "").toUpperCase() === "IN_PROGRESS"
+              ? currentNode?.approver_id || primaryAdmin.id
+              : approval.approver_id,
+          approver_name:
+            String(approval.approval_status || "").toUpperCase() === "IN_PROGRESS"
+              ? currentNode?.approver_name || primaryAdmin.display_name
+              : approval.approver_name,
+          nodes,
+        };
+      }),
+      customer_requests: data.customer_requests.map((request) => {
+        const nodes = Array.isArray(request.nodes)
+          ? request.nodes.map((node) =>
+              needsPrimaryAdminFallback(node.approver_id)
+                ? {
+                    ...node,
+                    approver_id: primaryAdmin.id,
+                    approver_name: primaryAdmin.display_name,
+                  }
+                : node
+            )
+          : [];
+        const currentNode = nodes.find((item) => item.node_order === request.current_node) || nodes[0] || null;
+        return {
+          ...request,
+          approver_id: currentNode?.approver_id || primaryAdmin.id,
+          approver_name: currentNode?.approver_name || primaryAdmin.display_name,
+          finance_cc_id: needsPrimaryAdminFallback(request.finance_cc_id) ? primaryAdmin.id : request.finance_cc_id,
+          finance_cc_name: needsPrimaryAdminFallback(request.finance_cc_id) ? primaryAdmin.display_name : request.finance_cc_name,
+          initiated_by: needsPrimaryAdminFallback(request.initiated_by) ? primaryAdmin.id : request.initiated_by,
+          initiated_by_name: needsPrimaryAdminFallback(request.initiated_by) ? primaryAdmin.display_name : request.initiated_by_name,
+          nodes,
+        };
+      }),
+      account_requests: data.account_requests.map((request) => ({
+        ...request,
+        approver_id: primaryAdmin.id,
+        approver_name: primaryAdmin.display_name,
+      })),
+      customers: data.customers.map((customer) => ({
+        ...customer,
+        default_approver_id: needsPrimaryAdminFallback(customer.default_approver_id) ? primaryAdmin.id : customer.default_approver_id,
+      })),
+    };
+  }
+
   function normalizeData(raw) {
     const defaults = buildDefaultData();
-    return {
-      users: Array.isArray(raw?.users)
-        ? filterInactiveMasterRecords(raw.users.map((user) => {
-            const fallback = defaults.users.find((item) => item.id === user.id || item.user_name === user.user_name);
-            return {
-              ...(fallback || {}),
-              ...user,
-              permissions: normalizeUserPermissions(user.role || fallback?.role || "", user.permissions || fallback?.permissions),
-              status: user.status || fallback?.status || "ACTIVE",
-              password: user.password || fallback?.password || TEMP_ACCOUNT_PASSWORD,
-              account_origin: user.account_origin || fallback?.account_origin || "DIRECT_CREATE",
-              approved_by: user.approved_by || fallback?.approved_by || "",
-              approved_by_name: user.approved_by_name || fallback?.approved_by_name || "",
-              last_login_at: user.last_login_at || fallback?.last_login_at || "",
-              remark: user.remark || fallback?.remark || "",
-            };
-          }))
-        : defaults.users,
+    const normalized = {
+      users: Array.isArray(raw?.users) ? normalizeUsers(raw.users, defaults.users) : defaults.users,
       customers: Array.isArray(raw?.customers) ? filterInactiveMasterRecords(raw.customers.map((item) => normalizeCustomerRecord(item))) : defaults.customers,
       products: Array.isArray(raw?.products) ? filterInactiveMasterRecords(raw.products.map((item) => normalizeProductRecord(item))) : defaults.products,
       formulas: Array.isArray(raw?.formulas)
@@ -667,6 +741,7 @@
       account_requests: Array.isArray(raw?.account_requests) ? raw.account_requests : [],
       logs: Array.isArray(raw?.logs) ? raw.logs : [],
     };
+    return migratePrimaryAdministratorReferences(normalized);
   }
 
   function normalizeCustomerRecord(customer) {
@@ -798,10 +873,10 @@
     if (state.data.quotes.length > 0) {
       return;
     }
-    const sales = getUserById("u_sales_01");
-    const manager = getUserById("u_mgr_01");
-    const business = getUserById("u_business_01");
-    const finance = getUserById("u_finance_01");
+    const primaryAdmin = findPrimaryAdministratorUser();
+    if (!primaryAdmin) {
+      return;
+    }
 
     createQuoteFromPayload(
       {
@@ -821,7 +896,7 @@
         ura: 5.5,
         remark: "首月陈列支持",
       },
-      sales,
+      primaryAdmin,
       { silent: true }
     );
 
@@ -843,20 +918,20 @@
         ura: 5,
         remark: "渠道活动支持",
       },
-      sales,
+      primaryAdmin,
       { silent: true }
     );
 
     const firstApproval = state.data.approvals[0];
     if (firstApproval) {
-      processApproval(firstApproval.id, "approve", manager, "直属负责人通过", true);
-      processApproval(firstApproval.id, "approve", finance, "财务复核通过", true);
+      processApproval(firstApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
+      processApproval(firstApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
     }
 
     const secondApproval = state.data.approvals[1];
     if (secondApproval) {
-      processApproval(secondApproval.id, "approve", manager, "客户策略通过", true);
-      processApproval(secondApproval.id, "approve", business, "经营评估通过", true);
+      processApproval(secondApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
+      processApproval(secondApproval.id, "approve", primaryAdmin, "Harbor 审批通过", true);
     }
 
     persistData();
@@ -1065,8 +1140,8 @@
       approval_status: "PENDING",
       generated_user_id: "",
       generated_password: "",
-      approver_id: findFirstAdministratorUser()?.id || "",
-      approver_name: findFirstAdministratorUser()?.display_name || tr("管理员"),
+      approver_id: findPrimaryAdministratorUser()?.id || "",
+      approver_name: findPrimaryAdministratorUser()?.display_name || tr("管理员"),
       approved_at: "",
       created_at: now,
       updated_at: now,
@@ -1197,7 +1272,7 @@
   }
 
   function getDefaultCustomerApproverUser() {
-    return findFirstUserByRole("SALES_MANAGER") || findFirstUserByRole("BUSINESS_HEAD") || findFirstUserByRole("FINANCE_HEAD") || findFirstAdministratorUser();
+    return findFirstUserByRole("SALES_MANAGER") || findFirstUserByRole("BUSINESS_HEAD") || findFirstUserByRole("FINANCE_HEAD") || findPrimaryAdministratorUser();
   }
 
   function renderCustomerBaseOptions() {
@@ -1884,9 +1959,10 @@
   }
 
   function buildApprovalForQuote(quote, customer, operator) {
-    const salesManager = getUserById(customer.default_approver_id) || findFirstUserByRole("SALES_MANAGER");
-    const businessHead = findFirstUserByRole("BUSINESS_HEAD");
-    const financeHead = findFirstUserByRole("FINANCE_HEAD");
+    const primaryAdmin = findPrimaryAdministratorUser();
+    const salesManager = getUserById(customer.default_approver_id) || findFirstUserByRole("SALES_MANAGER") || primaryAdmin;
+    const businessHead = findFirstUserByRole("BUSINESS_HEAD") || primaryAdmin;
+    const financeHead = findFirstUserByRole("FINANCE_HEAD") || primaryAdmin;
     const flow = quote.approval_type === "SPECIAL"
       ? [tr("直属上级负责人审批"), tr("销售/经营负责人审批"), tr("财务负责人审批")]
       : [tr("直属上级负责人审批"), tr("财务负责人审批")];
@@ -2847,7 +2923,7 @@
       return;
     }
     if (isProductReferenced(product.id)) {
-      setAlert(dom.productFormAlert, tr("产品已被报价引用，暂不能删除。"), "warn");
+      setAlert(dom.productFormAlert, tr("产品仍存在审批中的报价，暂不能删除。"), "warn");
       return;
     }
     const confirmed = window.confirm(tt("confirm.productDelete", { sku: product.sku }));
@@ -2953,8 +3029,9 @@
 
   function submitCustomerRequest() {
     const operator = getCurrentOperator();
-    const businessHead = findFirstUserByRole("SALES_MANAGER") || findFirstUserByRole("BUSINESS_HEAD");
-    const financeHead = findFirstUserByRole("FINANCE_HEAD");
+    const primaryAdmin = findPrimaryAdministratorUser();
+    const businessHead = findFirstUserByRole("SALES_MANAGER") || findFirstUserByRole("BUSINESS_HEAD") || primaryAdmin;
+    const financeHead = findFirstUserByRole("FINANCE_HEAD") || primaryAdmin;
     if (!businessHead) {
       setAlert(dom.customerFormAlert, tr("系统尚未配置业务负责人，无法提交客户申请。"), "danger");
       return;
@@ -3454,12 +3531,12 @@
   }
 
   function renderAccountsPage() {
-    if (!hasAdministratorAccess()) {
+    if (!canManageAccounts()) {
       if (dom.accountRequestsTableBody) {
-        dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅管理员角色可查看账号审批数据"))}</td></tr>`;
+        dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅超级管理员 harbor 可查看账号审批数据"))}</td></tr>`;
       }
       if (dom.accountsTableBody) {
-        dom.accountsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅管理员角色可查看账号列表"))}</td></tr>`;
+        dom.accountsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅超级管理员 harbor 可查看账号列表"))}</td></tr>`;
       }
       syncLanguage();
       return;
@@ -3552,8 +3629,8 @@
 
   function onSaveAccount() {
     const operator = getCurrentOperator();
-    if (!hasAdministratorAccess(operator?.role)) {
-      setAlert(dom.accountFormAlert, tr("只有管理员角色可以生成或维护账号。"), "danger");
+    if (!canManageAccounts(operator)) {
+      setAlert(dom.accountFormAlert, tr("仅超级管理员 harbor 可以生成或维护账号。"), "danger");
       return;
     }
     const id = String(dom.accountEditId?.value || "").trim() || buildId("user");
@@ -3577,6 +3654,10 @@
     const duplicate = state.data.users.find((item) => item.id !== id && String(item.user_name || "").toLowerCase() === userName);
     if (duplicate) {
       setAlert(dom.accountFormAlert, tt("alerts.accountExists", { userName }), "warn");
+      return;
+    }
+    if (exists && isPrimaryAdministratorUser(exists) && (userName !== PRIMARY_ADMIN_USER_NAME || role !== "SYSTEM_ADMIN")) {
+      setAlert(dom.accountFormAlert, tr("Harbor 超级管理员账号必须保留 SYSTEM_ADMIN 角色与固定登录名。"), "warn");
       return;
     }
     if (exists?.id === operator.id && !hasAdministratorAccess(role)) {
@@ -3656,8 +3737,8 @@
       return;
     }
     const operator = getCurrentOperator();
-    if (!hasAdministratorAccess(operator?.role)) {
-      setAlert(dom.accountFormAlert, tr("只有管理员角色可以审批账号申请。"), "danger");
+    if (!canManageAccounts(operator)) {
+      setAlert(dom.accountFormAlert, tr("仅超级管理员 harbor 可以审批账号申请。"), "danger");
       return;
     }
     const action = String(button.dataset.accountRequestAction || "");
@@ -3697,8 +3778,8 @@
       return;
     }
     const operator = getCurrentOperator();
-    if (!hasAdministratorAccess(operator?.role)) {
-      setAlert(dom.accountFormAlert, tr("只有管理员角色可以维护账号。"), "danger");
+    if (!canManageAccounts(operator)) {
+      setAlert(dom.accountFormAlert, tr("仅超级管理员 harbor 可以维护账号。"), "danger");
       return;
     }
     const action = String(button.dataset.accountAction || "");
@@ -3719,6 +3800,10 @@
       return;
     }
     if (action === "delete") {
+      if (isPrimaryAdministratorUser(account)) {
+        setAlert(dom.accountFormAlert, tr("Harbor 超级管理员账号不能删除。"), "warn");
+        return;
+      }
       if (account.id === operator.id) {
         setAlert(dom.accountFormAlert, tr("不能删除当前正在登录的管理员账号。"), "warn");
         return;
@@ -3877,7 +3962,7 @@
       return;
     }
     if (isCustomerReferenced(customer.id)) {
-      setAlert(dom.customerFormAlert, tr("客户已被报价或客户申请引用，暂不能删除。"), "warn");
+      setAlert(dom.customerFormAlert, tr("客户仍存在审批中的报价或客户申请，暂不能删除。"), "warn");
       return;
     }
     const confirmed = window.confirm(tt("confirm.customerDelete", { customerCode: customer.customer_code }));
@@ -5087,6 +5172,9 @@
     if (permissions[CORE_PERMISSION_KEYS.CREATE_CUSTOMER]) {
       pages.add("customerPage");
     }
+    if (!canManageAccounts(user)) {
+      pages.delete("accountPage");
+    }
     return Array.from(pages);
   }
 
@@ -5101,6 +5189,10 @@
 
   function hasAdministratorAccess(role = getCurrentOperatorRole()) {
     return ADMIN_ROLES.has(role);
+  }
+
+  function canManageAccounts(user = getCurrentOperator()) {
+    return isPrimaryAdministratorUser(user);
   }
 
   function getUserById(id) {
@@ -5167,6 +5259,10 @@
     return getActiveUsers().find((item) => hasAdministratorAccess(item.role)) || null;
   }
 
+  function findPrimaryAdministratorUser() {
+    return getUserByUserName(PRIMARY_ADMIN_USER_NAME) || getActiveUsers().find((item) => item.role === "SYSTEM_ADMIN") || findFirstAdministratorUser();
+  }
+
   function countAdministratorUsers(users = state.data.users) {
     return (users || []).filter((item) => hasAdministratorAccess(item.role)).length;
   }
@@ -5176,12 +5272,14 @@
   }
 
   function isProductReferenced(productId) {
-    return state.data.quotes.some((item) => item.product_id === productId);
+    return state.data.quotes.some(
+      (item) => item.product_id === productId && String(item.approval_status || "").toUpperCase() === "IN_PROGRESS"
+    );
   }
 
   function isCustomerReferenced(customerId) {
     return (
-      state.data.quotes.some((item) => item.customer_id === customerId) ||
+      state.data.quotes.some((item) => item.customer_id === customerId && String(item.approval_status || "").toUpperCase() === "IN_PROGRESS") ||
       state.data.customer_requests.some((item) => item.approval_status === "IN_PROGRESS" && item.target_customer_id === customerId)
     );
   }

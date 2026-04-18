@@ -23,7 +23,7 @@ function createCustomerDraft(row) {
     default_discount: Number(row.discount_factor || 0.8),
     default_rebate_value: Number(row.rebate_value || 0),
     default_rebate_type: normalizeText(row.rebate_type || "AMOUNT").toUpperCase(),
-    default_approver_id: "u_mgr_01",
+    default_approver_id: "u_admin_01",
     status: "DRAFT",
     remark: "批量导入自动创建客户草稿",
     created_at: now(),
