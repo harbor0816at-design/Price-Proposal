@@ -38,6 +38,7 @@
     "申请账号": { en: "Requested Login ID", de: "Beantragtes Anmeldekonto" },
     "申请密码": { en: "Requested Password", de: "Beantragtes Passwort" },
     "申请角色": { en: "Requested Role", de: "Beantragte Rolle" },
+    "岗位": { en: "Position", de: "Position" },
     "账号申请提交后，由管理员审批并生成登录账号。申请密码仅申请人本人知晓，系统不会在审批过程中展示。": {
       en: "After submission, an administrator reviews the request and generates the login account. The requested password is known only to the applicant and is not shown during approval.",
       de: "Nach dem Einreichen prüft ein Administrator den Antrag und erstellt das Anmeldekonto. Das beantragte Passwort ist nur dem Antragsteller bekannt und wird während der Freigabe nicht angezeigt.",

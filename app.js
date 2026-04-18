@@ -28,6 +28,7 @@
   const PRIMARY_ADMIN_DISPLAY_NAME = "Harbor";
   const LEGACY_SEED_USER_IDS = new Set(["u_sales_01", "u_mgr_01", "u_business_01", "u_finance_01"]);
   const LEGACY_SEED_USER_NAMES = new Set(["li.sales", "wang.manager", "zhou.business", "liu.finance", "sun.admin"]);
+  const INITIAL_DATA_MARKERS = ["审批中心初始化", "系统初始化", "INIT_APPROVAL_CENTER", "INIT_LOG"];
   const ADMIN_PAGE_IDS = ["quoteQueryPage", "quoteCreatePage", "importPage", "formulaPage", "productPage", "customerPage", "approvalPage", "accountPage", "logPage"];
   const ADMIN_ROLES = new Set(["BUSINESS_HEAD", "FINANCE_HEAD", "SYSTEM_ADMIN"]);
   const CORE_PERMISSION_KEYS = {
@@ -122,6 +123,7 @@
     dom.requestUserName = document.getElementById("requestUserName");
     dom.requestPassword = document.getElementById("requestPassword");
     dom.requestRole = document.getElementById("requestRole");
+    dom.requestPosition = document.getElementById("requestPosition");
     dom.requestTeam = document.getElementById("requestTeam");
     dom.requestReason = document.getElementById("requestReason");
     dom.submitAccountRequestBtn = document.getElementById("submitAccountRequestBtn");
@@ -273,6 +275,7 @@
     dom.accountUserName = document.getElementById("accountUserName");
     dom.accountRole = document.getElementById("accountRole");
     dom.accountTeam = document.getElementById("accountTeam");
+    dom.accountPosition = document.getElementById("accountPosition");
     dom.accountPassword = document.getElementById("accountPassword");
     dom.accountStatus = document.getElementById("accountStatus");
     dom.accountPermCreateCustomer = document.getElementById("accountPermCreateCustomer");
@@ -441,6 +444,7 @@
       role: "SYSTEM_ADMIN",
       permissions: buildDefaultPermissionsForRole("SYSTEM_ADMIN"),
       team: "系统管理",
+      position: "",
       status: "ACTIVE",
       password: PRIMARY_ADMIN_PASSWORD,
       account_origin: "SYSTEM_SEED",
@@ -605,6 +609,7 @@
           approved_by: user.approved_by || fallback?.approved_by || "",
           approved_by_name: user.approved_by_name || fallback?.approved_by_name || "",
           last_login_at: user.last_login_at || fallback?.last_login_at || "",
+          position: String(user.position || fallback?.position || "").trim(),
           remark: user.remark || fallback?.remark || "",
         };
       })
@@ -629,6 +634,7 @@
       status: "ACTIVE",
       password: PRIMARY_ADMIN_PASSWORD,
       team: "系统管理",
+      position: String(primarySource?.position || "").trim(),
       remark: "系统预置超级管理员账号",
     };
 
@@ -742,6 +748,7 @@
       account_requests: Array.isArray(raw?.account_requests)
         ? raw.account_requests.map((request) => ({
             ...request,
+            requested_position: String(request?.requested_position || "").trim(),
             requested_password: String(request?.requested_password || "").trim(),
             generated_password: String(request?.generated_password || ""),
           }))
@@ -888,6 +895,35 @@
     return String(customer?.remark || "").trim() === "审批中心初始化客户申请";
   }
 
+  function stringifyForSeedCheck(value) {
+    if (typeof value === "string") {
+      return value;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value || "");
+    }
+  }
+
+  function containsInitialDataMarker(value) {
+    const text = stringifyForSeedCheck(value);
+    return INITIAL_DATA_MARKERS.some((marker) => text.includes(marker));
+  }
+
+  function isInitialSeedLog(log) {
+    const actionType = String(log?.action_type || "").toUpperCase();
+    if (actionType.startsWith("INIT_")) {
+      return true;
+    }
+    return (
+      containsInitialDataMarker(log?.target_name) ||
+      containsInitialDataMarker(log?.before_data) ||
+      containsInitialDataMarker(log?.after_data) ||
+      containsInitialDataMarker(log?.operator_name)
+    );
+  }
+
   function cleanupInitialApprovalAndLogData() {
     const removedQuoteIds = new Set();
     const removedLogTargets = new Set();
@@ -895,7 +931,7 @@
     let changed = false;
 
     state.data.quotes = state.data.quotes.filter((quote) => {
-      if (!isSeededApprovalQuote(quote)) {
+      if (!isSeededApprovalQuote(quote) && !containsInitialDataMarker(quote?.remark)) {
         return true;
       }
       changed = true;
@@ -905,7 +941,7 @@
     });
 
     state.data.approvals = state.data.approvals.filter((approval) => {
-      if (!removedQuoteIds.has(approval.quote_id)) {
+      if (!removedQuoteIds.has(approval.quote_id) && !containsInitialDataMarker(approval)) {
         return true;
       }
       changed = true;
@@ -914,7 +950,7 @@
     });
 
     state.data.customer_requests = state.data.customer_requests.filter((request) => {
-      if (!isSeededCustomerRequest(request)) {
+      if (!isSeededCustomerRequest(request) && !containsInitialDataMarker(request)) {
         return true;
       }
       changed = true;
@@ -925,7 +961,11 @@
     });
 
     state.data.customers = state.data.customers.filter((customer) => {
-      if (!isSeededCustomerRecord(customer) && !removedCustomerCodes.has(String(customer.customer_code || ""))) {
+      if (
+        !isSeededCustomerRecord(customer) &&
+        !removedCustomerCodes.has(String(customer.customer_code || "")) &&
+        !containsInitialDataMarker(customer?.remark)
+      ) {
         return true;
       }
       changed = true;
@@ -935,8 +975,7 @@
 
     state.data.logs = state.data.logs.filter((log) => {
       const target = String(log?.target_name || "");
-      const actionType = String(log?.action_type || "").toUpperCase();
-      if (actionType === "INIT_APPROVAL_CENTER_CUSTOMER_REQUEST") {
+      if (isInitialSeedLog(log)) {
         changed = true;
         return false;
       }
@@ -1135,6 +1174,7 @@
     const userName = String(dom.requestUserName?.value || "").trim().toLowerCase();
     const password = String(dom.requestPassword?.value || "").trim();
     const role = String(dom.requestRole?.value || "SALES_ENTRY");
+    const position = String(dom.requestPosition?.value || "").trim();
     const team = String(dom.requestTeam?.value || "").trim();
     const reason = String(dom.requestReason?.value || "").trim();
     if (!applicantName || !userName || !password || !team || !reason) {
@@ -1164,6 +1204,7 @@
       requested_user_name: userName,
       requested_password: password,
       requested_role: role,
+      requested_position: position,
       team,
       reason,
       approval_status: "PENDING",
@@ -1176,7 +1217,13 @@
       updated_at: now,
     };
     state.data.account_requests.unshift(request);
-    writeLog("SUBMIT_ACCOUNT_REQUEST", userName, null, { request_no: request.request_no, requested_role: request.requested_role }, buildVirtualOperator("访客申请"));
+    writeLog(
+      "SUBMIT_ACCOUNT_REQUEST",
+      userName,
+      null,
+      { request_no: request.request_no, requested_role: request.requested_role, requested_position: request.requested_position || "" },
+      buildVirtualOperator("访客申请")
+    );
     persistData();
     if (dom.requestDisplayName) {
       dom.requestDisplayName.value = "";
@@ -1189,6 +1236,9 @@
     }
     if (dom.requestTeam) {
       dom.requestTeam.value = "";
+    }
+    if (dom.requestPosition) {
+      dom.requestPosition.value = "";
     }
     if (dom.requestReason) {
       dom.requestReason.value = "";
@@ -3566,10 +3616,10 @@
   function renderAccountsPage() {
     if (!canManageAccounts()) {
       if (dom.accountRequestsTableBody) {
-        dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅超级管理员 harbor 可查看账号审批数据"))}</td></tr>`;
+        dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tr("仅超级管理员 harbor 可查看账号审批数据"))}</td></tr>`;
       }
       if (dom.accountsTableBody) {
-        dom.accountsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("仅超级管理员 harbor 可查看账号列表"))}</td></tr>`;
+        dom.accountsTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tr("仅超级管理员 harbor 可查看账号列表"))}</td></tr>`;
       }
       syncLanguage();
       return;
@@ -3587,7 +3637,7 @@
       .slice()
       .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
     if (rows.length === 0) {
-      dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="9">${escapeHtml(tr("暂无账号申请"))}</td></tr>`;
+      dom.accountRequestsTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tr("暂无账号申请"))}</td></tr>`;
       return;
     }
     dom.accountRequestsTableBody.innerHTML = rows
@@ -3598,6 +3648,7 @@
             <td>${escapeHtml(request.applicant_name)}</td>
             <td>${escapeHtml(request.requested_user_name)}</td>
             <td>${escapeHtml(renderRoleLabel(request.requested_role))}</td>
+            <td>${escapeHtml(request.requested_position || "-")}</td>
             <td>${escapeHtml(request.team)}</td>
             <td>${escapeHtml(request.reason)}</td>
             <td>${renderStatusBadge(request.approval_status === "PENDING" ? "PENDING_APPROVAL" : request.approval_status)}</td>
@@ -3641,6 +3692,7 @@
             <td>${escapeHtml(user.display_name)}</td>
             <td>${escapeHtml(user.user_name)}</td>
             <td>${escapeHtml(renderRoleLabel(user.role))}</td>
+            <td>${escapeHtml(user.position || "-")}</td>
             <td>${escapeHtml(user.team || "-")}</td>
             <td>${escapeHtml(buildPermissionSummary(user.permissions))}</td>
             <td>${renderStatusBadge(user.status)}</td>
@@ -3672,6 +3724,7 @@
     const displayName = String(dom.accountDisplayName?.value || "").trim();
     const role = String(dom.accountRole?.value || "SALES_ENTRY");
     const team = String(dom.accountTeam?.value || "").trim();
+    const position = String(dom.accountPosition?.value || "").trim();
     const password = String(dom.accountPassword?.value || "");
     const permissions = collectAccountPermissionsFromForm(role);
     const remark = String(dom.accountRemark?.value || "").trim();
@@ -3706,6 +3759,7 @@
       role,
       permissions,
       team,
+      position,
       status: "ACTIVE",
       password: password || exists?.password || TEMP_ACCOUNT_PASSWORD,
       account_origin: exists?.account_origin || "DIRECT_CREATE",
@@ -3729,8 +3783,10 @@
     writeLog(
       exists ? "UPDATE_ACCOUNT" : "CREATE_ACCOUNT",
       nextUser.user_name,
-      exists ? { role: exists.role, status: exists.status, permission_summary: buildPermissionSummary(exists.permissions) } : null,
-      { role: nextUser.role, status: nextUser.status, permission_summary: buildPermissionSummary(nextUser.permissions) },
+      exists
+        ? { role: exists.role, position: exists.position || "", status: exists.status, permission_summary: buildPermissionSummary(exists.permissions) }
+        : null,
+      { role: nextUser.role, position: nextUser.position, status: nextUser.status, permission_summary: buildPermissionSummary(nextUser.permissions) },
       operator
     );
     persistData();
@@ -3753,6 +3809,7 @@
     }
     setAccountPermissionInputs(buildDefaultPermissionsForRole("SALES_ENTRY"));
     setInputValue(dom.accountTeam, "");
+    setInputValue(dom.accountPosition, "");
     setInputValue(dom.accountPassword, "");
     if (dom.accountStatus) {
       dom.accountStatus.value = "ACTIVE";
@@ -3871,6 +3928,7 @@
     }
     setAccountPermissionInputs(normalizeUserPermissions(account.role, account.permissions));
     setInputValue(dom.accountTeam, account.team);
+    setInputValue(dom.accountPosition, account.position || "");
     setInputValue(dom.accountPassword, "");
     if (dom.accountStatus) {
       dom.accountStatus.value = "ACTIVE";
@@ -3888,6 +3946,7 @@
     }
     setAccountPermissionInputs(buildDefaultPermissionsForRole(request.requested_role));
     setInputValue(dom.accountTeam, request.team);
+    setInputValue(dom.accountPosition, request.requested_position || "");
     setInputValue(dom.accountPassword, "");
     if (dom.accountStatus) {
       dom.accountStatus.value = "ACTIVE";
@@ -3917,6 +3976,7 @@
       role: request.requested_role,
       permissions: buildDefaultPermissionsForRole(request.requested_role),
       team: request.team,
+      position: request.requested_position || "",
       status: "ACTIVE",
       password: request.requested_password,
       account_origin: "ACCOUNT_REQUEST",
@@ -3942,6 +4002,7 @@
       null,
       {
         request_no: request.request_no,
+        position: user.position || "",
         permission_summary: buildPermissionSummary(user.permissions),
       },
       operator
