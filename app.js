@@ -22,7 +22,7 @@
   ];
   const QUOTE_WARNING_THRESHOLD = 0.05;
   const DEFAULT_FORMULA_EXPRESSION = "((MSRP / (1 + VAT)) * (1 - FrontMargin) * (1 - DB - CustomerMargin - ServiceFee - MKTFundingRate)) - STKbuffer";
-  const CUSTOMER_QUOTE_SHEET_VERSION = 1;
+  const CUSTOMER_QUOTE_SHEET_VERSION = 2;
   const TEMP_ACCOUNT_PASSWORD = "Welcome@123";
   const PRIMARY_ADMIN_ID = "u_admin_01";
   const PRIMARY_ADMIN_USER_NAME = "harbor";
@@ -866,6 +866,7 @@
       ura: roundMoney(quote?.ura ?? 5.5),
       remark: quote?.remark || "",
     };
+    const fallbackRawCustomerPrice = normalizeRawCustomerPrice(quote?.raw_customer_price);
     const recalculated = calculateQuote(
       {
         effective_month: normalized.effective_month || getCurrentMonthValue(),
@@ -887,9 +888,10 @@
     );
     return {
       ...normalized,
-      final_quote_price: recalculated.final_quote_price || normalized.final_quote_price || 0,
-      gross_profit: recalculated.gross_profit || normalized.gross_profit || 0,
-      gross_margin: recalculated.gross_margin || normalized.gross_margin || 0,
+      raw_customer_price: Number.isFinite(recalculated.raw_customer_price) ? recalculated.raw_customer_price : fallbackRawCustomerPrice,
+      final_quote_price: Number.isFinite(recalculated.final_quote_price) ? recalculated.final_quote_price : getFinalCustomerPrice(normalized.final_quote_price),
+      gross_profit: Number.isFinite(recalculated.gross_profit) ? recalculated.gross_profit : roundMoney(normalized.gross_profit || 0),
+      gross_margin: Number.isFinite(recalculated.gross_margin) ? recalculated.gross_margin : roundRatio(normalized.gross_margin || 0),
       warning_level: recalculated.warning_level || normalized.warning_level || "NONE",
       warning_message: recalculated.warning_message || normalized.warning_message || "",
       approval_type: recalculated.approval_type || normalized.approval_type || "NORMAL",
@@ -1663,36 +1665,41 @@
       errors.push(tr("零售价低于成本价，系统直接拦截。"));
     }
 
-    let finalQuotePrice = 0;
+    let rawCustomerPrice = null;
     try {
-      finalQuotePrice = roundMoney(
-        Function(
-          "MSRP",
-          "Cost",
-          "DB",
-          "CustomerMargin",
-          "ServiceFee",
-          "MKTFunding",
-          "MKTFundingRate",
-          "STKbuffer",
-          "FrontMargin",
-          "VAT",
-          "URA",
-          `return ${expression};`
-        )(MSRP, Cost, DB, CustomerMargin, ServiceFee, MKTFunding, MKTFundingRate, STKbuffer, FrontMargin, VAT, URA)
+      rawCustomerPrice = getRawCustomerPrice(
+        {
+          MSRP,
+          Cost,
+          DB,
+          CustomerMargin,
+          ServiceFee,
+          MKTFunding,
+          MKTFundingRate,
+          STKbuffer,
+          FrontMargin,
+          VAT,
+          URA,
+        },
+        expression
       );
     } catch (error) {
       errors.push(`${tr("公式计算失败：")}${error instanceof Error ? error.message : tr("未知错误")}`);
     }
 
-    if (finalQuotePrice <= 0) {
+    if (!Number.isFinite(rawCustomerPrice)) {
+      errors.push(tr("报价公式结果无效，无法生成报价。"));
+    }
+
+    if (Number.isFinite(rawCustomerPrice) && rawCustomerPrice <= 0) {
       errors.push(tr("报价公式结果小于等于 0，无法生成报价。"));
     }
 
-    const grossProfit = roundMoney(finalQuotePrice - Cost);
-    const grossMargin = finalQuotePrice > 0 ? roundRatio(grossProfit / finalQuotePrice) : 0;
-    const belowCostFlag = finalQuotePrice < Cost;
-    const lowMarginWarningFlag = grossMargin < QUOTE_WARNING_THRESHOLD;
+    const finalQuotePrice = getFinalCustomerPrice(rawCustomerPrice);
+    const { grossProfit, grossMargin } = calculateQuoteProfitMetrics(finalQuotePrice, Cost);
+    const hasValidCustomerPrice = Number.isFinite(rawCustomerPrice) && finalQuotePrice > 0;
+    const belowCostFlag = hasValidCustomerPrice && finalQuotePrice < Cost;
+    const lowMarginWarningFlag = hasValidCustomerPrice && grossMargin < QUOTE_WARNING_THRESHOLD;
     const warningLevel = belowCostFlag ? "RED" : lowMarginWarningFlag ? "YELLOW" : "NONE";
 
     if (belowCostFlag) {
@@ -1724,12 +1731,14 @@
       { label: tr("Front Margin (J)"), formula: "FrontMargin", value: FrontMargin, type: "percent" },
       { label: tr("VAT (K)"), formula: "VAT", value: VAT, type: "percent" },
       { label: tr("URA (L)"), formula: tr("参考字段，不参与当前公式"), value: URA },
-      { label: tr("客户报价"), formula: expression, value: finalQuotePrice },
-      { label: tr("毛利额"), formula: "FinalQuotePrice - Cost", value: grossProfit },
-      { label: tr("毛利率"), formula: "GrossProfit / FinalQuotePrice", value: grossMargin, type: "percent" },
+      { label: tr("原始客户报价"), formula: expression, value: rawCustomerPrice },
+      { label: tr("客户报价"), formula: "Math.ceil(RawCustomerPrice)", value: finalQuotePrice, type: "customer-price" },
+      { label: tr("毛利额"), formula: "FinalCustomerPrice - Cost", value: grossProfit },
+      { label: tr("毛利率"), formula: "GrossProfit / FinalCustomerPrice", value: grossMargin, type: "percent" },
     ];
 
     return {
+      raw_customer_price: rawCustomerPrice,
       final_quote_price: finalQuotePrice,
       gross_profit: grossProfit,
       gross_margin: grossMargin,
@@ -1770,7 +1779,7 @@
       `
         <div class="summary-card">
           <span class="hint">${escapeHtml(tr("客户报价"))}</span>
-          <strong>${formatMoney(calc.final_quote_price)}</strong>
+          <strong>${formatCustomerPrice(calc.final_quote_price)}</strong>
         </div>
       `,
     ];
@@ -1821,7 +1830,7 @@
           <tr>
             <td>${escapeHtml(item.label)}</td>
             <td>${escapeHtml(item.formula)}</td>
-            <td>${escapeHtml(item.type === "percent" ? formatPercent(item.value) : formatMoney(item.value))}</td>
+            <td>${escapeHtml(formatCalculationStepValue(item))}</td>
           </tr>
         `
       )
@@ -2070,6 +2079,7 @@
       front_margin: toRateInput(payload.front_margin, 0),
       vat: toRateInput(payload.vat, 0),
       ura: roundMoney(payload.ura),
+      raw_customer_price: calculation.raw_customer_price,
       final_quote_price: calculation.final_quote_price,
       gross_profit: calculation.gross_profit,
       gross_margin: calculation.gross_margin,
@@ -2319,7 +2329,7 @@
     }
     const totalAmount = records.reduce((sum, item) => sum + Number(item.final_quote_price || 0), 0);
     dom.quotesSummary.textContent =
-      records.length === 0 ? tr("暂无价格结果") : tt("price.querySummary", { count: records.length, amount: formatMoney(totalAmount) });
+      records.length === 0 ? tr("暂无价格结果") : tt("price.querySummary", { count: records.length, amount: formatCustomerPrice(totalAmount) });
   }
 
   function renderQuotesTable(records) {
@@ -2341,7 +2351,7 @@
             <td>${escapeHtml(quote.product_series)}</td>
             <td>${escapeHtml(formatMoney(quote.msrp))}</td>
             <td data-permission-key="view_fob">${escapeHtml(renderProtectedMoney(quote.cost_price, CORE_PERMISSION_KEYS.VIEW_FOB))}</td>
-            <td>${escapeHtml(formatMoney(quote.final_quote_price))}</td>
+            <td>${escapeHtml(formatCustomerPrice(quote.final_quote_price))}</td>
             <td data-permission-key="view_gross_profit">${escapeHtml(renderProtectedMoney(quote.gross_profit, CORE_PERMISSION_KEYS.VIEW_GROSS_PROFIT))}</td>
             <td data-permission-key="view_gross_margin">${escapeHtml(renderProtectedPercent(quote.gross_margin, CORE_PERMISSION_KEYS.VIEW_GROSS_MARGIN))}</td>
             <td>${escapeHtml(quote.effective_month)}</td>
@@ -2408,7 +2418,7 @@
       buildDetailItem("Front Margin (J)", formatPercent(quote.front_margin)),
       buildDetailItem("VAT (K)", formatPercent(quote.vat)),
       buildDetailItem("URA (L)", formatMoney(quote.ura)),
-      buildDetailItem("客户报价", formatMoney(quote.final_quote_price)),
+      buildDetailItem("客户报价", formatCustomerPrice(quote.final_quote_price)),
       buildDetailItem("审批状态", renderPlainStatus(quote.approval_status)),
       buildDetailItem("报价状态", renderPlainStatus(quoteStatus)),
       buildDetailItem("生效月份", quote.effective_month),
@@ -2450,7 +2460,7 @@
                     <tr>
                       <td>${escapeHtml(step.label)}</td>
                       <td>${escapeHtml(step.formula)}</td>
-                      <td>${escapeHtml(step.type === "percent" ? formatPercent(step.value) : formatMoney(step.value))}</td>
+                      <td>${escapeHtml(formatCalculationStepValue(step))}</td>
                     </tr>
                   `
                 )
@@ -2716,7 +2726,7 @@
       formula,
       calculation,
       status: ok ? "PASS" : "FAIL",
-      message: ok ? formatMoney(calculation.final_quote_price) : issues[0] || calculation?.error_messages?.[0] || "校验失败",
+      message: ok ? formatCustomerPrice(calculation.final_quote_price) : issues[0] || calculation?.error_messages?.[0] || "校验失败",
     };
   }
 
@@ -2746,7 +2756,7 @@
             <td>${escapeHtml(item.customer?.customer_name || String(item.row.customer_name || ""))}</td>
             <td>${escapeHtml(item.product?.sku || String(item.row.sku || ""))}</td>
             <td>${escapeHtml(String(item.payload.effective_month || ""))}</td>
-            <td>${escapeHtml(item.status === "PASS" ? formatMoney(item.calculation?.final_quote_price) : "--")}</td>
+            <td>${escapeHtml(item.status === "PASS" ? formatCustomerPrice(item.calculation?.final_quote_price) : "--")}</td>
             <td>${escapeHtml(item.status === "PASS" ? "" : item.message)}</td>
           </tr>
         `
@@ -2847,7 +2857,7 @@
       },
       formula
     );
-    const detailItems = [buildDetailItem("试算报价", formatMoney(result.final_quote_price))];
+    const detailItems = [buildDetailItem("试算报价", formatCustomerPrice(result.final_quote_price))];
     if (canViewGrossProfit()) {
       detailItems.push(buildDetailItem("毛利额", formatMoney(result.gross_profit)));
     }
@@ -4434,7 +4444,7 @@
         targetName: approval.customer_name,
         targetCode: approval.sku,
         summary: quote?.product_name || "-",
-        amount: formatMoney(quote?.final_quote_price || 0),
+        amount: formatCustomerPrice(quote?.final_quote_price || 0),
         sensitiveAmount: renderProtectedMoney(quote?.cost_price || 0, CORE_PERMISSION_KEYS.VIEW_FOB),
         sensitiveRate: renderProtectedPercent(quote?.gross_margin || 0, CORE_PERMISSION_KEYS.VIEW_GROSS_MARGIN),
         policyOrWarning: renderBadge(quote?.warning_level || "NONE"),
@@ -4990,6 +5000,7 @@
       "created_at",
       "updated_at",
       "remark",
+      "raw_customer_price",
       "nodes",
       "calculation_steps",
       "before_customer",
@@ -5037,6 +5048,9 @@
 
   function renderLogFieldValue(key, value) {
     const normalizedKey = String(key || "");
+    if (normalizedKey === "final_quote_price") {
+      return formatCustomerPrice(value);
+    }
     if (normalizedKey === "role") {
       return renderRoleLabel(String(value || ""));
     }
@@ -5166,7 +5180,7 @@
             <td>${escapeHtml(quote.product_series)}</td>
             <td>${escapeHtml(quote.effective_month)}</td>
             <td>${escapeHtml(formatMoney(quote.msrp))}</td>
-            <td>${escapeHtml(formatMoney(quote.final_quote_price))}</td>
+            <td>${escapeHtml(formatCustomerPrice(quote.final_quote_price))}</td>
           </tr>
         `
       )
@@ -5329,7 +5343,7 @@
         quote.product_series,
         quote.effective_month,
         formatMoney(quote.msrp),
-        formatMoney(quote.final_quote_price),
+        formatCustomerPrice(quote.final_quote_price),
       ]),
       footerLines: [tt("details.systemGeneratedAt", { time: formatDateTime(generatedAt) })],
     });
@@ -6116,7 +6130,7 @@
       { label: tr("SKU"), value: quote.sku },
       { label: tr("产品系列"), value: quote.product_series },
       { label: tr("RRP"), value: formatMoney(quote.msrp) },
-      { label: tr("客户报价"), value: formatMoney(quote.final_quote_price) },
+      { label: tr("客户报价"), value: formatCustomerPrice(quote.final_quote_price) },
       { label: tr("生效月份"), value: quote.effective_month || "-" },
     ];
     const subject = tt("mail.subject", {
@@ -6221,7 +6235,7 @@
       <span class="eyebrow">${escapeHtml(tr("客户价格表"))}</span>
       <h1>${escapeHtml(tr("客户价格表"))}</h1>
       <p>${escapeHtml(tr("本价格表由系统在审批通过后自动生成，可直接用于邮件发送与客户确认。"))}</p>
-      <div class="quote-price">${escapeHtml(formatMoney(quote.final_quote_price))}</div>
+      <div class="quote-price">${escapeHtml(formatCustomerPrice(quote.final_quote_price))}</div>
       <table>
         <tbody>
           ${previewFields
@@ -6270,7 +6284,7 @@
         effectiveMonth: quote.effective_month || "",
       }).trim(),
       highlightLabel: tr("客户报价"),
-      highlightValue: formatMoney(quote.final_quote_price),
+      highlightValue: formatCustomerPrice(quote.final_quote_price),
       detailPairs: previewFields.map((item) => ({
         label: item.label,
         value: item.value,
@@ -6807,6 +6821,21 @@
     });
   }
 
+  function formatCustomerPrice(value) {
+    if (value == null || (typeof value === "string" && !value.trim())) {
+      return "--";
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "--";
+    }
+    const normalized = Number.isInteger(numeric) ? numeric : getFinalCustomerPrice(numeric);
+    return normalized.toLocaleString(getNumberLocale(), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+  }
+
   function formatPercent(value) {
     if (!Number.isFinite(Number(value))) {
       return "--";
@@ -6949,6 +6978,80 @@
       return fallback;
     }
     return Math.abs(numeric) > 1 ? numeric / 100 : numeric;
+  }
+
+  function normalizeRawCustomerPrice(value) {
+    if (value == null || (typeof value === "string" && !value.trim())) {
+      return null;
+    }
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    return Number(numeric.toFixed(6));
+  }
+
+  function getRawCustomerPrice(input, expression) {
+    const rawCustomerPrice = Function(
+      "MSRP",
+      "Cost",
+      "DB",
+      "CustomerMargin",
+      "ServiceFee",
+      "MKTFunding",
+      "MKTFundingRate",
+      "STKbuffer",
+      "FrontMargin",
+      "VAT",
+      "URA",
+      `return ${expression};`
+    )(
+      input.MSRP,
+      input.Cost,
+      input.DB,
+      input.CustomerMargin,
+      input.ServiceFee,
+      input.MKTFunding,
+      input.MKTFundingRate,
+      input.STKbuffer,
+      input.FrontMargin,
+      input.VAT,
+      input.URA
+    );
+    return normalizeRawCustomerPrice(rawCustomerPrice);
+  }
+
+  function getFinalCustomerPrice(rawCustomerPrice) {
+    const normalizedRawCustomerPrice = normalizeRawCustomerPrice(rawCustomerPrice);
+    if (!Number.isFinite(normalizedRawCustomerPrice)) {
+      return 0;
+    }
+    const finalCustomerPrice = Math.ceil(normalizedRawCustomerPrice);
+    return Object.is(finalCustomerPrice, -0) ? 0 : finalCustomerPrice;
+  }
+
+  function calculateQuoteProfitMetrics(finalCustomerPrice, costPrice) {
+    const normalizedFinalCustomerPrice = Number.isFinite(Number(finalCustomerPrice)) ? Number(finalCustomerPrice) : 0;
+    const normalizedCostPrice = roundMoney(costPrice);
+    const grossProfit = roundMoney(normalizedFinalCustomerPrice - normalizedCostPrice);
+    const grossMargin = normalizedFinalCustomerPrice > 0 ? roundRatio(grossProfit / normalizedFinalCustomerPrice) : 0;
+    return {
+      grossProfit,
+      grossMargin,
+    };
+  }
+
+  function formatCalculationStepValue(step) {
+    if (step?.value == null || (typeof step?.value === "string" && !step.value.trim())) {
+      return "--";
+    }
+    if (step?.type === "percent") {
+      return formatPercent(step?.value);
+    }
+    if (step?.type === "customer-price") {
+      return formatCustomerPrice(step?.value);
+    }
+    return formatMoney(step?.value);
   }
 
   function setInputValue(input, value) {

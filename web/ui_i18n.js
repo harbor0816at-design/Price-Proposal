@@ -126,6 +126,10 @@
       en: "No price results match the current filters.",
       de: "Keine Preisergebnisse passen zu den aktuellen Filtern.",
     },
+    "报价公式结果无效，无法生成报价。": {
+      en: "The quote formula result is invalid and the quote cannot be generated.",
+      de: "Das Ergebnis der Angebotsformel ist ungültig und das Angebot kann nicht erstellt werden.",
+    },
     "当前筛选条件下没有可导出的价格结果。": {
       en: "There are no price results to export under the current filters.",
       de: "Unter den aktuellen Filtern gibt es keine Preisergebnisse zum Exportieren.",
@@ -186,6 +190,7 @@
     "Front Margin (J)": { en: "Front Margin (J)", de: "Front Margin (J)" },
     "VAT (K)": { en: "VAT (K)", de: "MwSt. (K)" },
     "URA (L)": { en: "URA (L)", de: "URA (L)" },
+    "原始客户报价": { en: "Raw Customer Quote", de: "Rohes Kundenangebot" },
     "客户点位": { en: "Customer Factor", de: "Kundenfaktor" },
     "特殊点位": { en: "Special Discount", de: "Sonderrabatt" },
     "返利": { en: "Rebate", de: "Bonus" },
