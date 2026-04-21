@@ -680,6 +680,21 @@ tbody tr:hover {
   background: #ffffff;
 }
 
+.quote-sheet-preview-shell {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.quote-sheet-preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 1180px;
+  border: 0;
+  background: #ffffff;
+}
+
 .quote-mail-subject {
   padding: 10px 12px;
   border-radius: 10px;

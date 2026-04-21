@@ -22,7 +22,20 @@
   ];
   const QUOTE_WARNING_THRESHOLD = 0.05;
   const DEFAULT_FORMULA_EXPRESSION = "((MSRP / (1 + VAT)) * (1 - FrontMargin) * (1 - DB - CustomerMargin - ServiceFee - MKTFundingRate)) - STKbuffer";
-  const CUSTOMER_QUOTE_SHEET_VERSION = 2;
+  const CUSTOMER_QUOTE_SHEET_VERSION = 3;
+  const CUSTOMER_QUOTATION_LOGO_PATH = "./web/assets/oppo-logo.svg";
+  const CUSTOMER_QUOTATION_DEFAULT_CURRENCY = "EUR";
+  const CUSTOMER_QUOTATION_DEFAULT_UNIT = "PCS";
+  const CUSTOMER_QUOTATION_DEFAULT_QUANTITY = 1;
+  const CUSTOMER_QUOTATION_COMPANY_LINES = [
+    "Rfriend Services GmbH",
+    "30th Floor, DC Tower 1",
+    "Donau-City-Strasse 7",
+    "1220 Vienna, Austria",
+    "Commercial Court: Vienna",
+    "Company No.: FN 654071w",
+    "VAT ID: ATU82229928",
+  ];
   const TEMP_ACCOUNT_PASSWORD = "Welcome@123";
   const PRIMARY_ADMIN_ID = "u_admin_01";
   const PRIMARY_ADMIN_USER_NAME = "harbor";
@@ -162,6 +175,8 @@
     dom.quoteProductId = document.getElementById("quoteProductId");
     dom.quoteFormulaId = document.getElementById("quoteFormulaId");
     dom.quoteEffectiveMonth = document.getElementById("quoteEffectiveMonth");
+    dom.quoteQuantity = document.getElementById("quoteQuantity");
+    dom.quoteUnit = document.getElementById("quoteUnit");
     dom.quoteMsrp = document.getElementById("quoteMsrp");
     dom.quoteCostPrice = document.getElementById("quoteCostPrice");
     dom.quoteDbRate = document.getElementById("quoteDbRate");
@@ -260,6 +275,10 @@
     dom.customerType = document.getElementById("customerType");
     dom.customerChannelType = document.getElementById("customerChannelType");
     dom.customerRegion = document.getElementById("customerRegion");
+    dom.customerContactName = document.getElementById("customerContactName");
+    dom.customerPhone = document.getElementById("customerPhone");
+    dom.customerEmail = document.getElementById("customerEmail");
+    dom.customerAddress = document.getElementById("customerAddress");
     dom.customerDbRate = document.getElementById("customerDbRate");
     dom.customerCustomerMargin = document.getElementById("customerCustomerMargin");
     dom.customerServiceFee = document.getElementById("customerServiceFee");
@@ -499,6 +518,10 @@
           customer_type: "RETAIL",
           channel_type: "OFFLINE",
           region: "德国",
+          contact_name: "",
+          phone: "",
+          email: "",
+          address: "",
           default_db_rate: 0.0334,
           default_customer_margin: 0.124,
           default_service_fee: 0.0012,
@@ -521,6 +544,10 @@
           customer_type: "ECOM",
           channel_type: "ONLINE",
           region: "欧盟",
+          contact_name: "",
+          phone: "",
+          email: "",
+          address: "",
           default_db_rate: 0.03,
           default_customer_margin: 0.118,
           default_service_fee: 0.001,
@@ -798,6 +825,10 @@
       ...customer,
       status: customer?.status || "ACTIVE",
       formal_cooperation_date: String(customer?.formal_cooperation_date || "").trim(),
+      contact_name: String(customer?.contact_name || "").trim(),
+      phone: String(customer?.phone || "").trim(),
+      email: String(customer?.email || "").trim(),
+      address: String(customer?.address || "").trim(),
       default_db_rate: toRateInput(customer?.default_db_rate, 0.0334),
       default_customer_margin: toRateInput(
         customer?.default_customer_margin,
@@ -864,6 +895,8 @@
       front_margin: toRateInput(quote?.front_margin, 0.005),
       vat: toRateInput(quote?.vat, quote?.tax_rate ?? 0.2),
       ura: roundMoney(quote?.ura ?? 5.5),
+      quantity: normalizeQuoteQuantity(quote?.quantity),
+      unit: normalizeQuoteUnit(quote?.unit),
       remark: quote?.remark || "",
     };
     const fallbackRawCustomerPrice = normalizeRawCustomerPrice(quote?.raw_customer_price);
@@ -1538,6 +1571,12 @@
     if (dom.quoteEffectiveMonth && !String(dom.quoteEffectiveMonth.value || "").trim()) {
       dom.quoteEffectiveMonth.value = getCurrentMonthValue();
     }
+    if (dom.quoteQuantity && !String(dom.quoteQuantity.value || "").trim()) {
+      dom.quoteQuantity.value = String(CUSTOMER_QUOTATION_DEFAULT_QUANTITY);
+    }
+    if (dom.quoteUnit && !String(dom.quoteUnit.value || "").trim()) {
+      dom.quoteUnit.value = CUSTOMER_QUOTATION_DEFAULT_UNIT;
+    }
     if (dom.quoteFormulaId && suggestedFormula && (!currentFormulaId || !getFormulaById(currentFormulaId))) {
       dom.quoteFormulaId.value = suggestedFormula.id;
     }
@@ -1610,6 +1649,8 @@
       product_id: String(dom.quoteProductId?.value || ""),
       formula_id: String(dom.quoteFormulaId?.value || ""),
       effective_month: String(dom.quoteEffectiveMonth?.value || "").trim(),
+      quantity: normalizeQuoteQuantity(dom.quoteQuantity?.value),
+      unit: normalizeQuoteUnit(dom.quoteUnit?.value),
       msrp: toNumber(dom.quoteMsrp?.value, 0),
       cost_price: toNumber(dom.quoteCostPrice?.value, 0),
       db_rate: toRateInput(dom.quoteDbRate?.value, 0),
@@ -1985,6 +2026,8 @@
       product_id: product?.id || "",
       formula_id: formula?.id || "",
       effective_month: String(basePayload.effective_month || "").trim() || getCurrentMonthValue(),
+      quantity: normalizeQuoteQuantity(basePayload.quantity),
+      unit: normalizeQuoteUnit(basePayload.unit),
       msrp: roundMoney(product?.default_msrp ?? basePayload.msrp ?? 0),
       cost_price: roundMoney(product?.default_cost ?? basePayload.cost_price ?? 0),
       db_rate: toRateInput(customer?.default_db_rate, toRateInput(basePayload.db_rate, 0)),
@@ -2069,6 +2112,8 @@
       formula_id: formula.id,
       formula_name: formula.formula_name,
       formula_version: formula.formula_version,
+      quantity: normalizeQuoteQuantity(payload.quantity),
+      unit: normalizeQuoteUnit(payload.unit),
       msrp: roundMoney(payload.msrp),
       cost_price: roundMoney(payload.cost_price),
       db_rate: toRateInput(payload.db_rate, 0),
@@ -2363,7 +2408,7 @@
     syncLanguage();
   }
 
-  function onQuotesTableAction(event) {
+  async function onQuotesTableAction(event) {
     const button = closestDataButton(event, "quoteAction");
     if (!button) {
       return;
@@ -2374,7 +2419,7 @@
       return;
     }
     if (action === "mail") {
-      downloadCustomerPriceSheet(quote, dom.quoteQueryAlert);
+      await downloadCustomerPriceSheet(quote, dom.quoteQueryAlert);
       return;
     }
     if (action === "copy") {
@@ -2491,36 +2536,35 @@
           }
         </div>
         <div class="panel-head">
-          <h4>客户价格表</h4>
-          <span class="hint">审批通过后自动生成，可直接复制、下载并发送给客户</span>
+          <h4>${escapeHtml(tr("客户报价单"))}</h4>
+          <span class="hint">${escapeHtml(tr("审批通过后自动生成，可直接预览、导出、打印并发送给客户。"))}</span>
         </div>
         ${
           customerQuoteSheet
             ? `
               <div class="detail-block customer-quote-sheet">
                 <div class="toolbar quote-mail-toolbar">
+                  <button class="btn btn-primary" type="button" data-mail-action="preview-html" data-quote-id="${escapeHtml(quote.id)}">${escapeHtml(tr("新窗口预览"))}</button>
+                  <button class="btn" type="button" data-mail-action="print-html" data-quote-id="${escapeHtml(quote.id)}">${escapeHtml(tr("打印报价单"))}</button>
+                  <button class="btn" type="button" data-mail-action="download-pdf" data-quote-id="${escapeHtml(quote.id)}">${escapeHtml(tr("下载报价单 PDF"))}</button>
+                  <button class="btn" type="button" data-mail-action="download-html" data-quote-id="${escapeHtml(quote.id)}">${escapeHtml(tr("下载报价单 HTML"))}</button>
+                  <button class="btn" type="button" data-mail-action="download-txt" data-quote-id="${escapeHtml(quote.id)}">${escapeHtml(tr("下载报价单 TXT"))}</button>
                   <button class="btn btn-primary" type="button" data-mail-action="copy-body" data-quote-id="${escapeHtml(quote.id)}">复制邮件正文</button>
                   <button class="btn" type="button" data-mail-action="copy-subject" data-quote-id="${escapeHtml(quote.id)}">复制邮件主题</button>
-                  <button class="btn" type="button" data-mail-action="download-pdf" data-quote-id="${escapeHtml(quote.id)}">下载价格表 PDF</button>
-                  <button class="btn" type="button" data-mail-action="download-html" data-quote-id="${escapeHtml(quote.id)}">下载价格表 HTML</button>
-                  <button class="btn" type="button" data-mail-action="download-txt" data-quote-id="${escapeHtml(quote.id)}">下载价格表 TXT</button>
                   <button class="btn" type="button" data-mail-action="open-mail" data-quote-id="${escapeHtml(quote.id)}">打开邮件草稿</button>
                 </div>
                 ${detailNotice ? `<div class="alert alert-${escapeHtml(detailNotice.type)}">${escapeHtml(detailNotice.text)}</div>` : ""}
-                <div class="detail-grid">
-                  ${customerQuoteSheet.preview_fields.map((item) => buildDetailItem(item.label, escapeHtml(item.value))).join("")}
-                </div>
-                <div class="quote-mail-card">
-                  <div class="panel-head">
-                    <h4>邮件内容预览</h4>
-                    <span class="hint">${escapeHtml(tt("details.generatedAt", { time: formatDateTime(customerQuoteSheet.generated_at) }))}</span>
-                  </div>
-                  <div class="quote-mail-subject">${escapeHtml(tt("details.mailSubject", { subject: customerQuoteSheet.subject }))}</div>
-                  <pre class="quote-mail-preview">${escapeHtml(customerQuoteSheet.body_text)}</pre>
+                <div class="quote-sheet-preview-shell">
+                  <iframe
+                    class="quote-sheet-preview-frame"
+                    title="${escapeHtml(tr("客户报价单预览"))}"
+                    sandbox="allow-popups allow-same-origin"
+                    srcdoc="${escapeHtml(customerQuoteSheet.attachment_html)}"
+                  ></iframe>
                 </div>
               </div>
             `
-            : `<div class="detail-placeholder">当前报价尚未审批通过。审批完成后，系统会自动生成一份客户可发送版本，并提供下载与复制入口。</div>`
+            : `<div class="detail-placeholder">${escapeHtml(tr("当前报价尚未审批通过。审批完成后，系统会自动生成一份客户可发送版本，并提供预览、打印与下载入口。"))}</div>`
         }
         <div class="panel-head">
           <h4>相关日志</h4>
@@ -2559,7 +2603,7 @@
     }
     const customerQuoteSheet = ensureCustomerQuoteSheet(quote);
     if (!customerQuoteSheet) {
-      setDetailNotice(quote.id, tr("当前报价尚未审批通过，暂时不能下载客户价格表。"), "warn");
+      setDetailNotice(quote.id, tr("当前报价尚未审批通过，暂时不能下载客户报价单。"), "warn");
       renderQuoteDetail();
       return;
     }
@@ -2578,8 +2622,16 @@
       downloadFile(customerQuoteSheet.html_filename, customerQuoteSheet.attachment_html, "text/html;charset=utf-8");
       setDetailNotice(quote.id, tt("details.mailDownloadHtml", { filename: customerQuoteSheet.html_filename }), "success");
     }
+    if (action === "preview-html") {
+      success = openCustomerQuoteSheetWindow(customerQuoteSheet, { autoPrint: false });
+      setDetailNotice(quote.id, success ? tr("已打开报价单预览窗口。") : tr("打开预览窗口失败，请检查浏览器弹窗权限。"), success ? "success" : "danger");
+    }
+    if (action === "print-html") {
+      success = openCustomerQuoteSheetWindow(customerQuoteSheet, { autoPrint: true });
+      setDetailNotice(quote.id, success ? tr("已尝试打开报价单打印窗口。") : tr("打开打印窗口失败，请检查浏览器弹窗权限。"), success ? "success" : "danger");
+    }
     if (action === "download-pdf") {
-      const pdfBundle = buildCustomerQuoteSheetPdf(quote, customerQuoteSheet);
+      const pdfBundle = await buildCustomerQuoteSheetPdf(quote, customerQuoteSheet);
       downloadBlobFile(pdfBundle.filename, pdfBundle.blob);
       setDetailNotice(quote.id, tt("details.mailDownloadPdf", { filename: pdfBundle.filename }), "success");
     }
@@ -2612,6 +2664,8 @@
       dom.quoteFormulaId.value = quote.formula_id;
     }
     setInputValue(dom.quoteEffectiveMonth, quote.effective_month);
+    setInputValue(dom.quoteQuantity, normalizeQuoteQuantity(quote.quantity));
+    setInputValue(dom.quoteUnit, normalizeQuoteUnit(quote.unit));
     const latestPricing = syncLatestQuoteProductPricing(product, {
       msrp: quote.msrp,
       cost_price: quote.cost_price,
@@ -2702,6 +2756,8 @@
       product_id: product?.id || "",
       formula_id: formula?.id || "",
       effective_month: String(row.effective_month || "").trim(),
+      quantity: normalizeQuoteQuantity(row.quantity),
+      unit: normalizeQuoteUnit(row.unit),
       msrp: toNumber(row.rrp ?? row.msrp, product?.default_msrp || 0),
       cost_price: toNumber(row.cost_price, product?.default_cost || 0),
       db_rate: toRateInput(row.db_rate, customer?.default_db_rate || 0),
@@ -3194,6 +3250,10 @@
       customer_type: String(dom.customerType?.value || "").trim() || "RETAIL",
       channel_type: String(dom.customerChannelType?.value || "").trim() || "OFFLINE",
       region: String(dom.customerRegion?.value || "").trim(),
+      contact_name: String(dom.customerContactName?.value || "").trim(),
+      phone: String(dom.customerPhone?.value || "").trim(),
+      email: String(dom.customerEmail?.value || "").trim(),
+      address: String(dom.customerAddress?.value || "").trim(),
       default_db_rate: toRateInput(dom.customerDbRate?.value, 0),
       default_customer_margin: toRateInput(dom.customerCustomerMargin?.value, 0),
       default_service_fee: toRateInput(dom.customerServiceFee?.value, 0),
@@ -3339,6 +3399,10 @@
       customer_type: String(dom.customerType?.value || "").trim() || "RETAIL",
       channel_type: String(dom.customerChannelType?.value || "").trim() || "OFFLINE",
       region: String(dom.customerRegion?.value || "").trim(),
+      contact_name: String(dom.customerContactName?.value || "").trim(),
+      phone: String(dom.customerPhone?.value || "").trim(),
+      email: String(dom.customerEmail?.value || "").trim(),
+      address: String(dom.customerAddress?.value || "").trim(),
       default_db_rate: toRateInput(dom.customerDbRate?.value, 0),
       default_customer_margin: toRateInput(dom.customerCustomerMargin?.value, 0),
       default_service_fee: toRateInput(dom.customerServiceFee?.value, 0),
@@ -3436,6 +3500,10 @@
     setInputValue(dom.customerType, "RETAIL");
     setInputValue(dom.customerChannelType, "OFFLINE");
     setInputValue(dom.customerRegion, "");
+    setInputValue(dom.customerContactName, "");
+    setInputValue(dom.customerPhone, "");
+    setInputValue(dom.customerEmail, "");
+    setInputValue(dom.customerAddress, "");
     setInputValue(dom.customerDbRate, "0.0334");
     setInputValue(dom.customerCustomerMargin, "0.124");
     setInputValue(dom.customerServiceFee, "0.0012");
@@ -3499,6 +3567,10 @@
       dom.customerType,
       dom.customerChannelType,
       dom.customerRegion,
+      dom.customerContactName,
+      dom.customerPhone,
+      dom.customerEmail,
+      dom.customerAddress,
       dom.customerDbRate,
       dom.customerCustomerMargin,
       dom.customerServiceFee,
@@ -3666,6 +3738,10 @@
     setInputValue(dom.customerType, customer.customer_type);
     setInputValue(dom.customerChannelType, customer.channel_type);
     setInputValue(dom.customerRegion, customer.region);
+    setInputValue(dom.customerContactName, customer.contact_name || "");
+    setInputValue(dom.customerPhone, customer.phone || "");
+    setInputValue(dom.customerEmail, customer.email || "");
+    setInputValue(dom.customerAddress, customer.address || "");
     setInputValue(dom.customerDbRate, customer.default_db_rate);
     setInputValue(dom.customerCustomerMargin, customer.default_customer_margin);
     setInputValue(dom.customerServiceFee, customer.default_service_fee);
@@ -3702,6 +3778,10 @@
     setInputValue(dom.customerType, proposed.customer_type || "RETAIL");
     setInputValue(dom.customerChannelType, proposed.channel_type || "OFFLINE");
     setInputValue(dom.customerRegion, proposed.region || "");
+    setInputValue(dom.customerContactName, proposed.contact_name || "");
+    setInputValue(dom.customerPhone, proposed.phone || "");
+    setInputValue(dom.customerEmail, proposed.email || "");
+    setInputValue(dom.customerAddress, proposed.address || "");
     setInputValue(dom.customerDbRate, proposed.default_db_rate ?? 0);
     setInputValue(dom.customerCustomerMargin, proposed.default_customer_margin ?? 0);
     setInputValue(dom.customerServiceFee, proposed.default_service_fee ?? 0);
@@ -4257,7 +4337,7 @@
       .join("");
   }
 
-  function onApprovalsTableAction(event) {
+  async function onApprovalsTableAction(event) {
     const button = closestDataButton(event, "approvalAction");
     if (!button) {
       return;
@@ -4319,7 +4399,7 @@
     if (action === "mail") {
       const quote = getQuoteById(approval.quote_id);
       if (quote) {
-        downloadCustomerPriceSheet(quote);
+        await downloadCustomerPriceSheet(quote);
       }
       return;
     }
@@ -5363,13 +5443,13 @@
     return `${baseName}-${tt("mail.listFileBase")}.${extension}`;
   }
 
-  function downloadCustomerPriceSheet(quote, alertContainer) {
+  async function downloadCustomerPriceSheet(quote, alertContainer) {
     const customerQuoteSheet = ensureCustomerQuoteSheet(quote, { force: true });
     if (!customerQuoteSheet) {
-      setAlert(alertContainer, tr("当前报价尚未审批通过，暂时不能下载客户价格表。"), "warn");
+      setAlert(alertContainer, tr("当前报价尚未审批通过，暂时不能下载客户报价单。"), "warn");
       return false;
     }
-    const pdfBundle = buildCustomerQuoteSheetPdf(quote, customerQuoteSheet);
+    const pdfBundle = await buildCustomerQuoteSheetPdf(quote, customerQuoteSheet);
     downloadBlobFile(pdfBundle.filename, pdfBundle.blob);
     setAlert(alertContainer, tt("details.mailDownloadPdf", { filename: pdfBundle.filename }), "success");
     return true;
@@ -5802,6 +5882,10 @@
       customer_type: "RETAIL",
       channel_type: "OFFLINE",
       region: "待补充",
+      contact_name: "",
+      phone: "",
+      email: "",
+      address: "",
       default_db_rate: 0,
       default_customer_margin: 0,
       default_service_fee: 0,
@@ -6123,176 +6207,693 @@
   }
 
   function buildCustomerQuoteSheet(quote, approval, generatedAt) {
+    const sheet = buildCustomerQuoteSheetViewModel(quote, approval, generatedAt);
+    return {
+      ...sheet,
+      version: CUSTOMER_QUOTE_SHEET_VERSION,
+      language: getCurrentLanguage(),
+      attachment_text: buildCustomerQuoteSheetText(sheet),
+      attachment_html: buildCustomerQuoteSheetHtml(sheet),
+      html_filename: `${quote.quote_no}-${tr("客户报价单")}.html`,
+      txt_filename: `${quote.quote_no}-${tr("客户报价单")}.txt`,
+      preview_fields: buildCustomerQuoteSheetPreviewFields(sheet),
+    };
+  }
+
+  function buildCustomerQuoteSheetViewModel(quote, approval, generatedAt) {
+    const customer = getCustomerById(quote?.customer_id) || null;
     const generated = generatedAt || nowIso();
-    const previewFields = [
-      { label: tr("客户名称"), value: quote.customer_name },
-      { label: tr("产品名称"), value: quote.product_name },
-      { label: tr("SKU"), value: quote.sku },
-      { label: tr("产品系列"), value: quote.product_series },
-      { label: tr("RRP"), value: formatMoney(quote.msrp) },
-      { label: tr("客户报价"), value: formatCustomerPrice(quote.final_quote_price) },
-      { label: tr("生效月份"), value: quote.effective_month || "-" },
+    const quantity = normalizeQuoteQuantity(quote?.quantity);
+    const unit = normalizeQuoteUnit(quote?.unit);
+    const finalCustomerPrice = getFinalCustomerPrice(quote?.final_quote_price);
+    const subtotal = roundMoney(finalCustomerPrice * quantity);
+    const quoteDateValue = approval?.approved_at || quote?.updated_at || quote?.created_at || generated;
+    const quoteDate = formatDateValue(quoteDateValue);
+    const validUntil = resolveCustomerQuoteSheetValidUntil(quote?.effective_month, quoteDateValue);
+    const queryMonth = normalizeMonthValue(quote?.effective_month) || String(quote?.effective_month || "").trim() || getCurrentMonthValue();
+    const currency = CUSTOMER_QUOTATION_DEFAULT_CURRENCY;
+    const customerInfo = [
+      { label: tr("客户名称"), value: quote?.customer_name || "" },
+      { label: tr("联系人"), value: customer?.contact_name || "" },
+      { label: tr("联系电话"), value: customer?.phone || "" },
+      { label: tr("邮箱"), value: customer?.email || "" },
+      { label: tr("地址"), value: customer?.address || "" },
     ];
-    const subject = tt("mail.subject", {
-      customerName: quote.customer_name,
-      productName: quote.product_name,
-      effectiveMonth: quote.effective_month || "",
-    }).trim();
+    const basicInfo = [
+      { label: tr("查询月份"), value: queryMonth },
+      { label: tr("报价记录"), value: "1" },
+      { label: tr("产品系列"), value: quote?.product_series || "" },
+      { label: tr("币种"), value: currency },
+    ];
+    const items = [
+      {
+        sequence: "1",
+        product_name: quote?.product_name || "",
+        sku: quote?.sku || "",
+        product_series: quote?.product_series || "",
+        effective_month: quote?.effective_month || "",
+        rrp_including_tax: formatMoney(quote?.msrp),
+        customer_quote_including_tax: formatCustomerPrice(finalCustomerPrice),
+        quantity: String(quantity),
+        unit,
+        subtotal_including_tax: formatCustomerPrice(subtotal),
+      },
+    ];
+    const subject = [
+      tr("报价单 / QUOTATION"),
+      quote?.customer_name || "",
+      quote?.product_name || "",
+      queryMonth,
+    ]
+      .filter((item) => String(item || "").trim())
+      .join(" - ");
     const bodyText = [
-      tt("mail.greeting", { customerName: quote.customer_name }),
+      tt("mail.greeting", { customerName: quote?.customer_name || "" }),
       "",
-      tt("mail.intro"),
+      tr("请查收附件报价单。以下为本次报价摘要："),
       "",
-      ...previewFields.map((item) => `${item.label}：${item.value}`),
+      `${tr("报价单号")}：${quote?.quote_no || ""}`,
+      `${tr("报价日期")}：${quoteDate}`,
+      `${tr("有效期至")}：${validUntil}`,
+      `${tr("产品名称")}：${quote?.product_name || ""}`,
+      `${tr("客户报价（含税）")}：${formatCustomerPrice(finalCustomerPrice)}`,
+      `${tr("数量")}：${quantity}`,
+      `${tr("单位")}：${unit}`,
+      `${tr("小计（含税）")}：${formatCustomerPrice(subtotal)}`,
       "",
       tt("mail.replyHint"),
-      "",
-      tt("details.salesContact", { name: quote.created_by_name }),
-      tt("details.systemGeneratedAt", { time: formatDateTime(generated) }),
     ].join("\n");
-    const attachmentText = [
-      tr("客户价格表"),
+    return {
+      generated_at: generated,
+      subject,
+      body_text: bodyText,
+      title_local: tr("报价单"),
+      title_en: "QUOTATION",
+      quote_no: quote?.quote_no || "",
+      quote_date: quoteDate,
+      valid_until: validUntil,
+      query_month: queryMonth,
+      quote_records: "1",
+      currency,
+      logo_src: CUSTOMER_QUOTATION_LOGO_PATH,
+      logo_resource_path: CUSTOMER_QUOTATION_LOGO_PATH,
+      customer_info: customerInfo,
+      basic_info: basicInfo,
+      items,
+      company_lines: CUSTOMER_QUOTATION_COMPANY_LINES.slice(),
+    };
+  }
+
+  function buildCustomerQuoteSheetPreviewFields(sheet) {
+    return [
+      { label: tr("报价单号"), value: sheet.quote_no },
+      { label: tr("报价日期"), value: sheet.quote_date },
+      { label: tr("有效期至"), value: sheet.valid_until },
+      ...sheet.customer_info,
+      ...sheet.basic_info,
+    ];
+  }
+
+  function buildCustomerQuoteSheetText(sheet) {
+    const lines = [
+      `${sheet.title_local} / ${sheet.title_en}`,
       "====================",
-      ...previewFields.map((item) => `${item.label}：${item.value}`),
+      `${tr("报价单号")}：${sheet.quote_no}`,
+      `${tr("报价日期")}：${sheet.quote_date}`,
+      `${tr("有效期至")}：${sheet.valid_until}`,
       "",
-      tt("details.systemGeneratedAt", { time: formatDateTime(generated) }),
-    ].join("\n");
-    const attachmentHtml = `<!DOCTYPE html>
+      tr("客户信息"),
+      ...sheet.customer_info.map((item) => `${item.label}：${formatCustomerQuoteSheetTextValue(item.value)}`),
+      "",
+      tr("基本报价信息"),
+      ...sheet.basic_info.map((item) => `${item.label}：${formatCustomerQuoteSheetTextValue(item.value)}`),
+      "",
+      tr("产品报价"),
+      ...sheet.items.map((item) =>
+        [
+          `${tr("序号")}：${item.sequence}`,
+          `${tr("产品名称")}：${formatCustomerQuoteSheetTextValue(item.product_name)}`,
+          `${tr("SKU")}：${formatCustomerQuoteSheetTextValue(item.sku)}`,
+          `${tr("产品系列")}：${formatCustomerQuoteSheetTextValue(item.product_series)}`,
+          `${tr("生效月份")}：${formatCustomerQuoteSheetTextValue(item.effective_month)}`,
+          `${tr("RRP（含税）")}：${item.rrp_including_tax}`,
+          `${tr("客户报价（含税）")}：${item.customer_quote_including_tax}`,
+          `${tr("数量")}：${item.quantity}`,
+          `${tr("单位")}：${item.unit}`,
+          `${tr("小计（含税）")}：${item.subtotal_including_tax}`,
+        ].join(" / ")
+      ),
+      "",
+      ...sheet.company_lines,
+    ];
+    return lines.join("\n");
+  }
+
+  function buildCustomerQuoteSheetHtml(sheet, options = {}) {
+    const autoPrintScript = options.autoPrint
+      ? `
+    <script>
+      window.addEventListener("load", function () {
+        setTimeout(function () {
+          window.print();
+        }, 240);
+      });
+    </script>`
+      : "";
+    const logoMarkup = sheet.logo_src
+      ? `<img class="quotation-logo" src="${escapeHtml(sheet.logo_src)}" alt="OPPO" onerror="this.style.display='none';" />`
+      : "";
+    const customerInfoHtml = sheet.customer_info
+      .map(
+        (item) => `
+          <div class="info-card${item.label === tr("地址") ? " info-card-wide" : ""}">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${renderCustomerQuoteSheetHtmlValue(item.value)}</strong>
+          </div>
+        `
+      )
+      .join("");
+    const basicInfoHtml = sheet.basic_info
+      .map(
+        (item) => `
+          <div class="info-card">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${renderCustomerQuoteSheetHtmlValue(item.value)}</strong>
+          </div>
+        `
+      )
+      .join("");
+    const tableRowsHtml = sheet.items
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapeHtml(item.sequence)}</td>
+            <td>${renderCustomerQuoteSheetHtmlValue(item.product_name)}</td>
+            <td>${renderCustomerQuoteSheetHtmlValue(item.sku)}</td>
+            <td>${renderCustomerQuoteSheetHtmlValue(item.product_series)}</td>
+            <td>${renderCustomerQuoteSheetHtmlValue(item.effective_month)}</td>
+            <td class="align-right">${escapeHtml(item.rrp_including_tax)}</td>
+            <td class="align-right">${escapeHtml(item.customer_quote_including_tax)}</td>
+            <td class="align-right">${escapeHtml(item.quantity)}</td>
+            <td>${escapeHtml(item.unit)}</td>
+            <td class="align-right">${escapeHtml(item.subtotal_including_tax)}</td>
+          </tr>
+        `
+      )
+      .join("");
+    return `<!DOCTYPE html>
 <html lang="${escapeHtml(document.documentElement.lang || "zh-CN")}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(subject)}</title>
+    <title>${escapeHtml(sheet.subject)}</title>
     <style>
       :root {
         color-scheme: light;
+        --oppo-green: #13a24a;
+        --oppo-green-soft: #eef8f1;
+        --ink: #1b2838;
+        --muted: #617084;
+        --border: #dbe5dd;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 14mm;
       }
       body {
         margin: 0;
-        background: #f4f7fb;
-        color: #182433;
-        font: 14px/1.6 "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-      }
-      .sheet {
-        max-width: 860px;
-        margin: 32px auto;
-        padding: 32px;
         background: #ffffff;
-        border: 1px solid #d8e0ea;
-        border-radius: 20px;
-        box-shadow: 0 12px 28px rgba(19, 34, 62, 0.08);
+        color: var(--ink);
+        font: 13px/1.55 "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
       }
-      .eyebrow {
-        display: inline-block;
-        padding: 4px 10px;
+      .quotation-sheet {
+        width: 100%;
+        max-width: 190mm;
+        margin: 0 auto;
+        padding: 14mm 13mm 12mm;
+        background: #ffffff;
+      }
+      .quotation-topline {
+        height: 5px;
+        width: 100%;
         border-radius: 999px;
-        background: #eaf2ff;
-        color: #1858c8;
-        font-size: 12px;
-        letter-spacing: 0.04em;
+        background: var(--oppo-green);
+        margin-bottom: 18px;
       }
-      h1 {
-        margin: 12px 0 8px;
-        font-size: 28px;
+      .quotation-header {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 20px;
+        align-items: start;
       }
-      p {
-        margin: 0 0 16px;
-        color: #66758a;
+      .quotation-brand {
+        min-height: 38px;
+        display: flex;
+        align-items: center;
       }
-      table {
+      .quotation-logo {
+        max-width: 150px;
+        max-height: 38px;
+        object-fit: contain;
+        display: block;
+      }
+      .quotation-header-main {
+        display: grid;
+        gap: 12px;
+      }
+      .quotation-title {
+        justify-self: end;
+        text-align: right;
+      }
+      .quotation-title strong {
+        display: block;
+        font-size: 26px;
+        letter-spacing: 0.02em;
+      }
+      .quotation-title span {
+        display: block;
+        margin-top: 2px;
+        color: var(--oppo-green);
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+      .quotation-meta {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .meta-card,
+      .info-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 11px 12px;
+      }
+      .meta-card span,
+      .info-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .meta-card strong,
+      .info-card strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        min-height: 20px;
+      }
+      .quotation-section {
+        margin-top: 18px;
+      }
+      .quotation-section h2 {
+        margin: 0 0 10px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid var(--oppo-green);
+        font-size: 15px;
+      }
+      .info-grid {
+        display: grid;
+        gap: 12px;
+      }
+      .info-grid-customer {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .info-grid-basic {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .info-card-wide {
+        grid-column: 1 / -1;
+      }
+      .quotation-table {
         width: 100%;
         border-collapse: collapse;
-        margin: 24px 0;
+        table-layout: fixed;
       }
-      th,
-      td {
-        padding: 12px 14px;
-        border: 1px solid #d8e0ea;
+      .quotation-table th,
+      .quotation-table td {
+        border: 1px solid var(--border);
+        padding: 10px 8px;
         text-align: left;
         vertical-align: top;
+        word-break: break-word;
       }
-      th {
-        width: 180px;
-        background: #f8fafc;
-        color: #66758a;
-        font-weight: 600;
-      }
-      .quote-price {
-        color: #1858c8;
-        font-size: 30px;
+      .quotation-table th {
+        background: var(--oppo-green-soft);
+        color: var(--ink);
+        font-size: 11px;
         font-weight: 700;
       }
-      .footer {
-        margin-top: 24px;
-        padding-top: 16px;
-        border-top: 1px solid #d8e0ea;
-        color: #66758a;
+      .quotation-table td {
+        font-size: 12px;
+      }
+      .align-right {
+        text-align: right !important;
+      }
+      .quotation-company {
+        margin-top: 22px;
+        padding-top: 12px;
+        border-top: 2px solid var(--oppo-green);
+      }
+      .quotation-company strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+      }
+      .quotation-company div {
+        color: var(--muted);
+      }
+      @media print {
+        body {
+          background: #ffffff;
+        }
+        .quotation-sheet {
+          max-width: none;
+          padding: 0;
+        }
+      }
+      @media (max-width: 900px) {
+        .quotation-sheet {
+          padding: 20px;
+        }
+        .quotation-header {
+          grid-template-columns: 1fr;
+        }
+        .quotation-title {
+          justify-self: start;
+          text-align: left;
+        }
+        .quotation-meta,
+        .info-grid-customer,
+        .info-grid-basic {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="sheet">
-      <span class="eyebrow">${escapeHtml(tr("客户价格表"))}</span>
-      <h1>${escapeHtml(tr("客户价格表"))}</h1>
-      <p>${escapeHtml(tr("本价格表由系统在审批通过后自动生成，可直接用于邮件发送与客户确认。"))}</p>
-      <div class="quote-price">${escapeHtml(formatCustomerPrice(quote.final_quote_price))}</div>
-      <table>
-        <tbody>
-          ${previewFields
-            .map(
-              (item) => `
-                <tr>
-                  <th>${escapeHtml(item.label)}</th>
-                  <td>${escapeHtml(item.value)}</td>
-                </tr>
-              `
-            )
-            .join("")}
-        </tbody>
-      </table>
-      <p>${escapeHtml(tr("如需确认、回签或进一步沟通，请直接回复原邮件。"))}</p>
-      <div class="footer">
-        <div>${escapeHtml(tt("details.salesContact", { name: quote.created_by_name }))}</div>
-        <div>${escapeHtml(tt("details.systemGeneratedAt", { time: formatDateTime(generated) }))}</div>
+    <div class="quotation-sheet">
+      <div class="quotation-topline"></div>
+      <div class="quotation-header">
+        <div class="quotation-brand" data-logo-path="${escapeHtml(sheet.logo_resource_path)}">
+          ${logoMarkup}
+        </div>
+        <div class="quotation-header-main">
+          <div class="quotation-title">
+            <strong>${escapeHtml(sheet.title_local)}</strong>
+            <span>${escapeHtml(sheet.title_en)}</span>
+          </div>
+          <div class="quotation-meta">
+            <div class="meta-card">
+              <span>${escapeHtml(tr("报价单号"))}</span>
+              <strong>${renderCustomerQuoteSheetHtmlValue(sheet.quote_no)}</strong>
+            </div>
+            <div class="meta-card">
+              <span>${escapeHtml(tr("报价日期"))}</span>
+              <strong>${renderCustomerQuoteSheetHtmlValue(sheet.quote_date)}</strong>
+            </div>
+            <div class="meta-card">
+              <span>${escapeHtml(tr("有效期至"))}</span>
+              <strong>${renderCustomerQuoteSheetHtmlValue(sheet.valid_until)}</strong>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <section class="quotation-section">
+        <h2>${escapeHtml(tr("客户信息"))}</h2>
+        <div class="info-grid info-grid-customer">${customerInfoHtml}</div>
+      </section>
+
+      <section class="quotation-section">
+        <h2>${escapeHtml(tr("基本报价信息"))}</h2>
+        <div class="info-grid info-grid-basic">${basicInfoHtml}</div>
+      </section>
+
+      <section class="quotation-section">
+        <h2>${escapeHtml(tr("产品报价"))}</h2>
+        <table class="quotation-table">
+          <thead>
+            <tr>
+              <th style="width: 6%;">${escapeHtml(tr("序号"))}</th>
+              <th style="width: 16%;">${escapeHtml(tr("产品名称"))}</th>
+              <th style="width: 12%;">${escapeHtml(tr("SKU"))}</th>
+              <th style="width: 12%;">${escapeHtml(tr("产品系列"))}</th>
+              <th style="width: 10%;">${escapeHtml(tr("生效月份"))}</th>
+              <th style="width: 11%;">${escapeHtml(tr("RRP（含税）"))}</th>
+              <th style="width: 12%;">${escapeHtml(tr("客户报价（含税）"))}</th>
+              <th style="width: 7%;">${escapeHtml(tr("数量"))}</th>
+              <th style="width: 6%;">${escapeHtml(tr("单位"))}</th>
+              <th style="width: 12%;">${escapeHtml(tr("小计（含税）"))}</th>
+            </tr>
+          </thead>
+          <tbody>${tableRowsHtml}</tbody>
+        </table>
+      </section>
+
+      <section class="quotation-company">
+        <strong>${escapeHtml(sheet.company_lines[0] || "")}</strong>
+        ${sheet.company_lines.slice(1).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+      </section>
+    </div>${autoPrintScript}
   </body>
 </html>`;
+  }
+
+  function renderCustomerQuoteSheetHtmlValue(value) {
+    const text = String(value == null ? "" : value).trim();
+    return text ? escapeHtml(text) : "&nbsp;";
+  }
+
+  function formatCustomerQuoteSheetTextValue(value) {
+    const text = String(value == null ? "" : value).trim();
+    return text || "";
+  }
+
+  function resolveCustomerQuoteSheetValidUntil(monthValue, fallbackDate) {
+    const monthEndDate = getMonthEndDateValue(monthValue);
+    if (monthEndDate) {
+      return monthEndDate;
+    }
+    const normalized = getDateInputValue(fallbackDate);
+    if (!normalized) {
+      return "";
+    }
+    const date = new Date(`${normalized}T00:00:00`);
+    date.setDate(date.getDate() + 30);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  function getMonthEndDateValue(monthValue) {
+    const normalized = normalizeMonthValue(monthValue);
+    if (!normalized) {
+      return "";
+    }
+    const [year, month] = normalized.split("-").map((item) => Number(item || 0));
+    const day = new Date(year, month, 0).getDate();
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  function buildCustomerQuoteSheetWindowHtml(customerQuoteSheet, options = {}) {
+    return buildCustomerQuoteSheetHtml(customerQuoteSheet, options);
+  }
+
+  function openCustomerQuoteSheetWindow(customerQuoteSheet, options = {}) {
+    const html = buildCustomerQuoteSheetWindowHtml(customerQuoteSheet, options);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const popup = window.open(url, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      URL.revokeObjectURL(url);
+      return false;
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return true;
+  }
+
+  async function buildCustomerQuoteSheetPdf(quote, customerQuoteSheet) {
+    const sheet = customerQuoteSheet || buildCustomerQuoteSheet(quote, getApprovalByQuoteId(quote?.id), nowIso());
+    const canvas = document.createElement("canvas");
+    canvas.width = 1240;
+    canvas.height = 1754;
+    const ctx = canvas.getContext("2d");
+    const layout = {
+      width: canvas.width,
+      height: canvas.height,
+      marginX: 88,
+      marginTop: 92,
+      contentWidth: canvas.width - 176,
+    };
+    const logoImage = await loadReportImage(sheet.logo_src);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#13a24a";
+    ctx.fillRect(layout.marginX, 72, layout.contentWidth, 8);
+
+    let currentY = drawCustomerQuoteSheetPdfHeader(ctx, sheet, layout, logoImage);
+    currentY = drawCustomerQuoteSheetPdfSection(ctx, tr("客户信息"), sheet.customer_info, currentY, layout, 2);
+    currentY = drawCustomerQuoteSheetPdfSection(ctx, tr("基本报价信息"), sheet.basic_info, currentY + 10, layout, 4);
+    currentY = drawCustomerQuoteSheetPdfItemsTable(ctx, sheet.items, currentY + 14, layout);
+    drawCustomerQuoteSheetPdfCompanyInfo(ctx, sheet.company_lines, Math.max(currentY + 24, 1460), layout);
+
     return {
-      version: CUSTOMER_QUOTE_SHEET_VERSION,
-      language: getCurrentLanguage(),
-      generated_at: generated,
-      subject,
-      body_text: bodyText,
-      attachment_text: attachmentText,
-      attachment_html: attachmentHtml,
-      html_filename: `${quote.quote_no}-${tt("mail.fileBase")}.html`,
-      txt_filename: `${quote.quote_no}-${tt("mail.fileBase")}.txt`,
-      preview_fields: previewFields,
+      filename: `${quote.quote_no}-${tr("客户报价单")}.pdf`,
+      blob: buildPdfBlobFromCanvases([canvas]),
     };
   }
 
-  function buildCustomerQuoteSheetPdf(quote, customerQuoteSheet) {
-    const previewFields = Array.isArray(customerQuoteSheet?.preview_fields) ? customerQuoteSheet.preview_fields : [];
-    const generatedAt = customerQuoteSheet?.generated_at || nowIso();
-    return buildPdfTableReport({
-      filename: `${quote.quote_no}-${tt("mail.fileBase")}.pdf`,
-      title: tr("客户价格表"),
-      subtitle: tt("mail.subject", {
-        customerName: quote.customer_name,
-        productName: quote.product_name,
-        effectiveMonth: quote.effective_month || "",
-      }).trim(),
-      highlightLabel: tr("客户报价"),
-      highlightValue: formatCustomerPrice(quote.final_quote_price),
-      detailPairs: previewFields.map((item) => ({
-        label: item.label,
-        value: item.value,
-      })),
-      footerLines: [
-        tt("details.salesContact", { name: quote.created_by_name }),
-        tt("details.systemGeneratedAt", { time: formatDateTime(generatedAt) }),
-      ],
+  function drawCustomerQuoteSheetPdfHeader(ctx, sheet, layout, logoImage) {
+    const logoX = layout.marginX;
+    const topY = layout.marginTop;
+    if (logoImage) {
+      const ratio = logoImage.width / logoImage.height || 1;
+      const logoHeight = 38;
+      const logoWidth = Math.min(170, logoHeight * ratio);
+      ctx.drawImage(logoImage, logoX, topY, logoWidth, logoHeight);
+    }
+
+    ctx.fillStyle = "#182433";
+    ctx.textAlign = "right";
+    ctx.font = '700 46px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+    ctx.fillText(sheet.title_local, layout.width - layout.marginX, topY + 18);
+    ctx.fillStyle = "#13a24a";
+    ctx.font = '700 24px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+    ctx.fillText(sheet.title_en, layout.width - layout.marginX, topY + 56);
+    ctx.textAlign = "left";
+
+    const metaCards = [
+      { label: tr("报价单号"), value: sheet.quote_no },
+      { label: tr("报价日期"), value: sheet.quote_date },
+      { label: tr("有效期至"), value: sheet.valid_until },
+    ];
+    const cardWidth = (layout.contentWidth - 24) / 3;
+    const cardY = topY + 86;
+    metaCards.forEach((item, index) => {
+      const x = layout.marginX + index * (cardWidth + 12);
+      drawRoundedRect(ctx, x, cardY, cardWidth, 82, 14, "#ffffff", "#dbe5dd");
+      ctx.fillStyle = "#617084";
+      ctx.font = '500 18px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+      ctx.fillText(String(item.label || ""), x + 16, cardY + 28);
+      ctx.fillStyle = "#182433";
+      ctx.font = '600 24px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+      drawTextLines(ctx, wrapCanvasText(ctx, item.value || " ", cardWidth - 32), x + 16, cardY + 58, 28);
+    });
+    return cardY + 104;
+  }
+
+  function drawCustomerQuoteSheetPdfSection(ctx, title, items, startY, layout, columns) {
+    ctx.fillStyle = "#182433";
+    ctx.font = '700 24px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+    ctx.fillText(String(title || ""), layout.marginX, startY + 24);
+    ctx.fillStyle = "#13a24a";
+    ctx.fillRect(layout.marginX, startY + 36, layout.contentWidth, 3);
+
+    const columnCount = Math.max(1, columns || 2);
+    const gap = 12;
+    const cardWidth = (layout.contentWidth - gap * (columnCount - 1)) / columnCount;
+    let currentY = startY + 54;
+    const rows = [];
+    for (let index = 0; index < items.length; index += columnCount) {
+      rows.push(items.slice(index, index + columnCount));
+    }
+    rows.forEach((row) => {
+      let rowHeight = 92;
+      const prepared = row.map((item, index) => {
+        const x = layout.marginX + index * (cardWidth + gap);
+        ctx.font = '600 22px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+        const valueLines = wrapCanvasText(ctx, item?.value || " ", cardWidth - 32);
+        rowHeight = Math.max(rowHeight, 54 + valueLines.length * 28);
+        return { item, x, valueLines };
+      });
+      prepared.forEach(({ item, x, valueLines }) => {
+        drawRoundedRect(ctx, x, currentY, cardWidth, rowHeight, 14, "#ffffff", "#dbe5dd");
+        ctx.fillStyle = "#617084";
+        ctx.font = '500 18px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+        ctx.fillText(String(item?.label || ""), x + 16, currentY + 28);
+        ctx.fillStyle = "#182433";
+        ctx.font = '600 22px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+        drawTextLines(ctx, valueLines, x + 16, currentY + 58, 28);
+      });
+      currentY += rowHeight + gap;
+    });
+    return currentY;
+  }
+
+  function drawCustomerQuoteSheetPdfItemsTable(ctx, items, startY, layout) {
+    ctx.fillStyle = "#182433";
+    ctx.font = '700 24px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+    ctx.fillText(tr("产品报价"), layout.marginX, startY + 24);
+    ctx.fillStyle = "#13a24a";
+    ctx.fillRect(layout.marginX, startY + 36, layout.contentWidth, 3);
+
+    const headers = [
+      tr("序号"),
+      tr("产品名称"),
+      tr("SKU"),
+      tr("产品系列"),
+      tr("生效月份"),
+      tr("RRP（含税）"),
+      tr("客户报价（含税）"),
+      tr("数量"),
+      tr("单位"),
+      tr("小计（含税）"),
+    ];
+    const ratios = [0.55, 1.5, 1.15, 1.1, 0.95, 1, 1.05, 0.65, 0.65, 1.05];
+    const widths = getPdfColumnWidths(layout.contentWidth, ratios);
+    const headerY = startY + 54;
+    drawPdfTableHeader(ctx, headers, headerY, layout.marginX, widths, 62);
+    const rows = items.map((item) => [
+      item.sequence,
+      item.product_name || " ",
+      item.sku || " ",
+      item.product_series || " ",
+      item.effective_month || " ",
+      item.rrp_including_tax || " ",
+      item.customer_quote_including_tax || " ",
+      item.quantity || " ",
+      item.unit || " ",
+      item.subtotal_including_tax || " ",
+    ]);
+    let currentY = headerY + 62;
+    rows.forEach((row) => {
+      const rowHeight = measurePdfTableRowHeight(ctx, row, widths);
+      drawPdfTableRow(ctx, row, currentY, layout.marginX, widths, rowHeight);
+      currentY += rowHeight;
+    });
+    return currentY;
+  }
+
+  function drawCustomerQuoteSheetPdfCompanyInfo(ctx, lines, startY, layout) {
+    const content = Array.isArray(lines) ? lines.filter(Boolean) : [];
+    if (content.length === 0) {
+      return;
+    }
+    ctx.fillStyle = "#13a24a";
+    ctx.fillRect(layout.marginX, startY, layout.contentWidth, 3);
+    ctx.fillStyle = "#182433";
+    ctx.font = '700 24px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+    ctx.fillText(content[0], layout.marginX, startY + 34);
+    ctx.fillStyle = "#617084";
+    ctx.font = '400 20px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif';
+    drawTextLines(ctx, content.slice(1), layout.marginX, startY + 70, 28);
+  }
+
+  function loadReportImage(src) {
+    return new Promise((resolve) => {
+      const url = String(src || "").trim();
+      if (!url) {
+        resolve(null);
+        return;
+      }
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = url;
     });
   }
 
@@ -6744,7 +7345,7 @@
       CREATE_QUOTE: "创建报价",
       APPROVE: "审批通过",
       REJECT: "审批驳回",
-      GENERATE_CUSTOMER_QUOTE_SHEET: "生成客户价格表",
+      GENERATE_CUSTOMER_QUOTE_SHEET: "生成客户报价单",
       CREATE_FORMULA: "创建公式",
       UPDATE_FORMULA: "更新公式",
       DELETE_FORMULA: "删除公式",
@@ -6834,6 +7435,11 @@
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     });
+  }
+
+  function formatDateValue(value) {
+    const normalized = getDateInputValue(value);
+    return normalized || "--";
   }
 
   function formatPercent(value) {
@@ -6989,6 +7595,19 @@
       return null;
     }
     return Number(numeric.toFixed(6));
+  }
+
+  function normalizeQuoteQuantity(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return CUSTOMER_QUOTATION_DEFAULT_QUANTITY;
+    }
+    return Math.max(1, Math.round(numeric));
+  }
+
+  function normalizeQuoteUnit(value) {
+    const text = String(value || "").trim();
+    return text || CUSTOMER_QUOTATION_DEFAULT_UNIT;
   }
 
   function getRawCustomerPrice(input, expression) {
