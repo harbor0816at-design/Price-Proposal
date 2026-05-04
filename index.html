@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>客户报价管理系统</title>
+    <title>B2B交易系统</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -18,8 +18,8 @@
       </div>
       <div class="login-layout">
         <section class="login-panel">
-          <p class="eyebrow login-eyebrow" data-i18n="portal.admin">B2B管理后台</p>
-          <h1 data-i18n="portal.pricingCenter">价格与报价中台</h1>
+          <p class="eyebrow login-eyebrow" data-i18n="portal.admin">员工工作台</p>
+          <h1 data-i18n="portal.pricingCenter">B2B交易系统</h1>
           <p class="hint" data-i18n="auth.loginHint">不同账号登录后，将自动进入对应的权限范围。</p>
           <form id="loginForm" class="grid-form">
             <label><span data-i18n="auth.loginUser">登录账号</span><input id="loginUserName" autocomplete="username" /></label>
@@ -31,62 +31,43 @@
           <div id="loginAlert"></div>
         </section>
 
-        <section class="login-panel partner-registration-panel">
-          <p class="eyebrow login-eyebrow" data-i18n="customer.registration.eyebrow">Partner Registration</p>
-          <h2 data-i18n="customer.registration.title">B2B合作伙伴注册</h2>
-          <p class="hint registration-intro" data-i18n="customer.registration.intro">申请成为Rfriend Services GmbH / OPPO Austria授权B2B合作伙伴。提交后，我们的销售与财务团队将审核您的公司信息、VAT资料、合作意向和信用条件。审核通过后，您将获得B2B客户门户账号，用于查看专属价格、可销售库存、订单、发票和发货状态。</p>
-          <p class="hint" data-i18n="customer.registration.requiredHint">带 * 的字段为必填项。</p>
+        <section class="login-panel partner-registration-panel employee-registration-panel">
+          <p class="eyebrow login-eyebrow" data-i18n="auth.employeeRegistration.eyebrow">员工注册</p>
+          <h2 data-i18n="auth.employeeRegistration.title">员工账号申请</h2>
+          <p class="hint registration-intro" data-i18n="auth.employeeRegistration.intro">本入口仅用于内部员工申请 B2B交易系统账号。客户开户注册由员工登录系统后，在客户管理中替客户录入并提交审批。</p>
+          <p class="hint" data-i18n="auth.employeeRegistration.requiredHint">带 * 的字段为必填项。</p>
           <form id="accountRequestForm" class="grid-form registration-form">
             <fieldset class="registration-step">
-              <legend><span>1</span><strong data-i18n="customer.registration.steps.company">公司信息</strong></legend>
-              <p class="hint" data-i18n="customer.registration.descriptions.company">请填写法人主体与商业类型，用于客户主档和VAT审核。</p>
-              <label><span data-i18n="customer.registration.fields.companyName">公司名称 *</span><input id="requestCompanyName" autocomplete="organization" /></label>
-              <label><span data-i18n="customer.registration.fields.countryRegion">国家 / 地区 *</span><input id="requestCountryRegion" /></label>
-              <label><span data-i18n="customer.registration.fields.companyNo">公司注册号 *</span><input id="requestCompanyNo" /></label>
-              <label><span data-i18n="customer.registration.fields.vatId">VAT ID *</span><input id="requestVatId" /></label>
-              <label><span data-i18n="customer.registration.fields.website">公司网站</span><input id="requestWebsite" type="url" /></label>
-              <label><span data-i18n="customer.registration.fields.businessType">业务类型 *</span><input id="requestBusinessType" /></label>
-              <label><span data-i18n="customer.registration.fields.channelType">渠道类型 *</span><input id="requestChannelType" /></label>
+              <legend><span>1</span><strong data-i18n="auth.employeeRegistration.steps.account">账号信息</strong></legend>
+              <p class="hint" data-i18n="auth.employeeRegistration.descriptions.account">提交后由系统管理员审批，审批通过后可使用申请账号和密码登录。</p>
+              <label><span data-i18n="auth.employeeRegistration.fields.displayName">申请人姓名 *</span><input id="requestDisplayName" autocomplete="name" /></label>
+              <label><span data-i18n="auth.employeeRegistration.fields.userName">申请登录账号 *</span><input id="requestUserName" autocomplete="username" /></label>
+              <label><span data-i18n="auth.employeeRegistration.fields.password">申请密码 *</span><input id="requestPassword" type="password" autocomplete="new-password" /></label>
+              <label>
+                <span data-i18n="auth.employeeRegistration.fields.role">申请角色 *</span>
+                <select id="requestRole">
+                  <option value="SALES_ENTRY" data-i18n="role.SALES_ENTRY">客户经理</option>
+                  <option value="SALES_MANAGER" data-i18n="role.SALES_MANAGER">电商负责人</option>
+                  <option value="BUSINESS_HEAD" data-i18n="role.BUSINESS_HEAD">总经理</option>
+                  <option value="FINANCE_HEAD" data-i18n="role.FINANCE_HEAD">财务总监</option>
+                </select>
+              </label>
             </fieldset>
             <fieldset class="registration-step">
-              <legend><span>2</span><strong data-i18n="customer.registration.steps.billing">开票与收货信息</strong></legend>
-              <p class="hint" data-i18n="customer.registration.descriptions.billing">这些信息将用于报价、Proforma Invoice、Commercial Invoice 和发货指令。</p>
-              <label class="full"><span data-i18n="customer.registration.fields.registeredAddress">注册地址 *</span><input id="requestRegisteredAddress" /></label>
-              <label class="full"><span data-i18n="customer.registration.fields.billingAddress">开票地址 *</span><input id="requestBillingAddress" /></label>
-              <label class="full"><span data-i18n="customer.registration.fields.shippingAddress">收货地址 *</span><input id="requestShippingAddress" /></label>
-              <label><span data-i18n="customer.registration.fields.invoiceEmail">发票邮箱 *</span><input id="requestInvoiceEmail" type="email" /></label>
-              <label><span data-i18n="customer.registration.fields.deliveryContactName">收货联系人 *</span><input id="requestDeliveryContactName" /></label>
-              <label><span data-i18n="customer.registration.fields.deliveryContactPhone">收货联系电话 *</span><input id="requestDeliveryContactPhone" /></label>
+              <legend><span>2</span><strong data-i18n="auth.employeeRegistration.steps.organization">组织信息</strong></legend>
+              <p class="hint" data-i18n="auth.employeeRegistration.descriptions.organization">请填写所属团队和岗位，便于管理员分配审批和数据权限。</p>
+              <label><span data-i18n="auth.employeeRegistration.fields.team">所属团队 *</span><input id="requestTeam" /></label>
+              <label><span data-i18n="auth.employeeRegistration.fields.position">岗位</span><input id="requestPosition" /></label>
+              <label class="full"><span data-i18n="auth.employeeRegistration.fields.reason">申请原因 *</span><textarea id="requestReason"></textarea></label>
             </fieldset>
             <fieldset class="registration-step">
-              <legend><span>3</span><strong data-i18n="customer.registration.steps.contact">联系人信息</strong></legend>
-              <p class="hint" data-i18n="customer.registration.descriptions.contact">我们会通过以下联系人完成开户注册和后续商务沟通。</p>
-              <label><span data-i18n="customer.registration.fields.contactName">联系人姓名 *</span><input id="requestContactName" autocomplete="name" /></label>
-              <label><span data-i18n="customer.registration.fields.jobTitle">职位</span><input id="requestJobTitle" /></label>
-              <label><span data-i18n="customer.registration.fields.email">邮箱 *</span><input id="requestEmail" type="email" autocomplete="email" /></label>
-              <label><span data-i18n="customer.registration.fields.phone">电话 *</span><input id="requestPhone" autocomplete="tel" /></label>
-              <label><span data-i18n="customer.registration.fields.preferredLanguage">首选语言</span><select id="requestPreferredLanguage"><option value="zh">中文</option><option value="en">English</option><option value="de">Deutsch</option></select></label>
-            </fieldset>
-            <fieldset class="registration-step">
-              <legend><span>4</span><strong data-i18n="customer.registration.steps.intention">合作意向</strong></legend>
-              <p class="hint" data-i18n="customer.registration.descriptions.intention">帮助销售团队判断合作范围、价格政策和信用条件。</p>
-              <label><span data-i18n="customer.registration.fields.productCategories">感兴趣的产品类别 *</span><input id="requestProductCategories" /></label>
-              <label><span data-i18n="customer.registration.fields.monthlyVolume">预计月采购量 *</span><input id="requestMonthlyVolume" /></label>
-              <label><span data-i18n="customer.registration.fields.targetSalesChannel">目标销售渠道 *</span><input id="requestTargetSalesChannel" /></label>
-              <label><span data-i18n="customer.registration.fields.existingCooperation">是否已有OPPO合作</span><input id="requestExistingCooperation" /></label>
-              <label class="full"><span data-i18n="customer.registration.fields.applicationReason">申请原因 *</span><textarea id="requestReason"></textarea></label>
-            </fieldset>
-            <fieldset class="registration-step">
-              <legend><span>5</span><strong data-i18n="customer.registration.steps.documents">文件与确认</strong></legend>
-              <p class="hint" data-i18n="customer.registration.descriptions.documents">可先填写文件名称或链接，正式审核时销售团队会跟进原件。</p>
-              <label><span data-i18n="customer.registration.fields.businessLicense">营业执照 / 公司注册文件</span><input id="requestBusinessLicense" /></label>
-              <label><span data-i18n="customer.registration.fields.vatCertificate">VAT证书</span><input id="requestVatCertificate" /></label>
-              <label class="full"><span data-i18n="customer.registration.fields.additionalDocuments">其他文件</span><input id="requestAdditionalDocuments" /></label>
-              <label class="checkbox-line registration-confirmation full"><input id="requestConfirmation" type="checkbox" /> <span data-i18n="customer.registration.confirmation">我确认以上信息真实有效，并同意 Rfriend Services GmbH 使用这些信息进行B2B合作伙伴审核。</span></label>
+              <legend><span>3</span><strong data-i18n="auth.employeeRegistration.steps.confirmation">确认提交</strong></legend>
+              <p class="hint" data-i18n="auth.employeeRegistration.descriptions.confirmation">客户资料、客户门户账号和价格政策必须由员工登录后在后台创建，不接受客户自助开户注册。</p>
+              <label class="checkbox-line registration-confirmation full"><input id="requestConfirmation" type="checkbox" /> <span data-i18n="auth.employeeRegistration.confirmation">我确认该账号申请仅供公司内部员工使用，并遵守 B2B交易系统权限管理要求。</span></label>
             </fieldset>
           </form>
           <div class="toolbar">
-            <button class="btn btn-primary" id="submitAccountRequestBtn" type="button" data-i18n="customer.registration.submit">提交合作伙伴申请</button>
+            <button class="btn btn-primary" id="submitAccountRequestBtn" type="button" data-i18n="auth.employeeRegistration.submit">提交员工账号申请</button>
           </div>
           <div id="accountRequestAlert"></div>
         </section>
@@ -96,8 +77,8 @@
     <div id="appShell" class="app-shell role-hidden">
       <aside class="sidebar">
         <div class="sidebar-header">
-          <div class="portal-chip" data-i18n="portal.admin">B2B管理后台</div>
-          <h1 data-i18n="portal.pricingCenter">价格与报价中台</h1>
+          <div class="portal-chip" data-i18n="portal.admin">员工工作台</div>
+          <h1 data-i18n="portal.pricingCenter">B2B交易系统</h1>
         </div>
         <nav class="sidebar-nav nav-list admin-nav" id="adminNav">
           <section class="nav-group" data-nav-group="workbench">
@@ -133,7 +114,7 @@
             </button>
             <div class="nav-sublist">
               <button class="nav-item" data-i18n="menu.customer.profiles" data-page-target="customerPage" data-nav-key="customer-master" data-customer-focus="master">客户档案</button>
-              <button class="nav-item" data-i18n="menu.customer.registrationReview" data-page-target="customerPage" data-nav-key="customer-registration" data-customer-focus="registration">客户注册审批</button>
+              <button class="nav-item" data-i18n="menu.customer.registrationReview" data-page-target="customerPage" data-nav-key="customer-registration" data-customer-focus="registration">客户开户注册审批</button>
               <button class="nav-item" data-i18n="menu.customer.accounts" data-page-target="accountPage" data-nav-key="customer-accounts">客户账号</button>
               <button class="nav-item" data-i18n="menu.customer.pricingPolicies" data-page-target="customerPage" data-nav-key="customer-price-policy" data-customer-focus="price">价格政策</button>
               <button class="nav-item" data-i18n="menu.customer.creditTerms" data-page-target="customerPage" data-nav-key="customer-credit" data-customer-focus="credit">信用额度 / 账期</button>
@@ -183,7 +164,7 @@
       <main class="main">
         <header class="topbar">
           <div>
-            <p class="eyebrow" data-i18n="portal.admin">B2B管理后台</p>
+            <p class="eyebrow" data-i18n="portal.admin">员工工作台</p>
             <h2 id="pageTitle">报价生成</h2>
           </div>
           <div class="topbar-tools">
@@ -697,10 +678,42 @@
                 <label>客户类型<input id="customerType" value="RETAIL" /></label>
                 <label>渠道类型<input id="customerChannelType" value="OFFLINE" /></label>
                 <label>区域<input id="customerRegion" /></label>
+                <label>国家 / 地区<input id="customerCountry" /></label>
+                <label>公司注册号<input id="customerCompanyNo" /></label>
+                <label>VAT ID<input id="customerVatId" /></label>
                 <label>联系人<input id="customerContactName" /></label>
                 <label>联系电话<input id="customerPhone" /></label>
                 <label>邮箱<input id="customerEmail" type="email" /></label>
                 <label class="full">地址<input id="customerAddress" /></label>
+                <label class="full">开票地址<input id="customerBillingAddress" /></label>
+                <label class="full">收货地址<input id="customerShippingAddress" /></label>
+                <label>发票邮箱<input id="customerInvoiceEmail" type="email" /></label>
+                <label>收货联系人<input id="customerDeliveryContactName" /></label>
+                <label>收货联系电话<input id="customerDeliveryContactPhone" /></label>
+                <label class="full">收货详细地址<input id="customerDeliveryAddress" /></label>
+                <label>账期<input id="customerPaymentTerms" value="PREPAID" /></label>
+                <label>信用额度<input id="customerCreditLimit" type="number" step="0.01" value="0" /></label>
+                <label>已用信用<input id="customerCreditUsed" type="number" step="0.01" value="0" /></label>
+                <label>客户门户启用
+                  <select id="customerPortalEnabled">
+                    <option value="true">启用</option>
+                    <option value="false">停用</option>
+                  </select>
+                </label>
+                <label>客户状态
+                  <select id="customerStatus">
+                    <option value="DRAFT">草稿</option>
+                    <option value="ACTIVE">已生效</option>
+                    <option value="SUSPENDED">已暂停</option>
+                    <option value="CLOSED">已关闭</option>
+                  </select>
+                </label>
+                <label>Reverse Charge
+                  <select id="customerReverseChargeEligible">
+                    <option value="false">否</option>
+                    <option value="true">是</option>
+                  </select>
+                </label>
                 <label>默认 DB (F)<input id="customerDbRate" type="number" step="0.0001" value="0.0334" /></label>
                 <label>默认 客户Margin (G)<input id="customerCustomerMargin" type="number" step="0.0001" value="0.124" /></label>
                 <label>默认 Service Fee (H)<input id="customerServiceFee" type="number" step="0.0001" value="0.0012" /></label>

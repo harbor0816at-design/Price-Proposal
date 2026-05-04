@@ -35,5 +35,5 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`客户报价管理系统已启动：http://127.0.0.1:${PORT}`);
+  console.log(`B2B交易系统已启动：http://127.0.0.1:${PORT}`);
 });

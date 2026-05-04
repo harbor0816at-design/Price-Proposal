@@ -241,7 +241,9 @@
     dom.requestDisplayName = document.getElementById("requestDisplayName");
     dom.requestUserName = document.getElementById("requestUserName");
     dom.requestPassword = document.getElementById("requestPassword");
+    dom.requestRole = document.getElementById("requestRole");
     dom.requestTeam = document.getElementById("requestTeam");
+    dom.requestPosition = document.getElementById("requestPosition");
     dom.requestReason = document.getElementById("requestReason");
     dom.requestCompanyName = document.getElementById("requestCompanyName");
     dom.requestCountryRegion = document.getElementById("requestCountryRegion");
@@ -442,10 +444,25 @@
     dom.customerType = document.getElementById("customerType");
     dom.customerChannelType = document.getElementById("customerChannelType");
     dom.customerRegion = document.getElementById("customerRegion");
+    dom.customerCountry = document.getElementById("customerCountry");
+    dom.customerCompanyNo = document.getElementById("customerCompanyNo");
+    dom.customerVatId = document.getElementById("customerVatId");
     dom.customerContactName = document.getElementById("customerContactName");
     dom.customerPhone = document.getElementById("customerPhone");
     dom.customerEmail = document.getElementById("customerEmail");
     dom.customerAddress = document.getElementById("customerAddress");
+    dom.customerBillingAddress = document.getElementById("customerBillingAddress");
+    dom.customerShippingAddress = document.getElementById("customerShippingAddress");
+    dom.customerInvoiceEmail = document.getElementById("customerInvoiceEmail");
+    dom.customerDeliveryContactName = document.getElementById("customerDeliveryContactName");
+    dom.customerDeliveryContactPhone = document.getElementById("customerDeliveryContactPhone");
+    dom.customerDeliveryAddress = document.getElementById("customerDeliveryAddress");
+    dom.customerPaymentTerms = document.getElementById("customerPaymentTerms");
+    dom.customerCreditLimit = document.getElementById("customerCreditLimit");
+    dom.customerCreditUsed = document.getElementById("customerCreditUsed");
+    dom.customerPortalEnabled = document.getElementById("customerPortalEnabled");
+    dom.customerStatus = document.getElementById("customerStatus");
+    dom.customerReverseChargeEligible = document.getElementById("customerReverseChargeEligible");
     dom.customerDbRate = document.getElementById("customerDbRate");
     dom.customerCustomerMargin = document.getElementById("customerCustomerMargin");
     dom.customerServiceFee = document.getElementById("customerServiceFee");
@@ -1759,7 +1776,7 @@
       };
       return focusMap[state.ui.dashboardFocus] || tt("menu.workspace.title");
     }
-    return buttonKey ? tt(buttonKey) : tr(activeButton?.textContent?.trim() || "客户报价管理系统");
+    return buttonKey ? tt(buttonKey) : tr(activeButton?.textContent?.trim() || "B2B交易系统");
   }
 
   function switchPage(pageId, options = {}) {
@@ -3575,209 +3592,91 @@
 
   function onSubmitAccountRequest() {
     const fieldValue = (element) => String(element?.value || "").trim();
-    const companyName = fieldValue(dom.requestCompanyName);
-    const country = fieldValue(dom.requestCountryRegion);
-    const companyNo = fieldValue(dom.requestCompanyNo);
-    const vatId = fieldValue(dom.requestVatId);
-    const businessType = fieldValue(dom.requestBusinessType);
-    const channelType = fieldValue(dom.requestChannelType);
-    const registeredAddress = fieldValue(dom.requestRegisteredAddress);
-    const billingAddress = fieldValue(dom.requestBillingAddress);
-    const shippingAddress = fieldValue(dom.requestShippingAddress);
-    const invoiceEmail = fieldValue(dom.requestInvoiceEmail);
-    const deliveryContactName = fieldValue(dom.requestDeliveryContactName);
-    const deliveryContactPhone = fieldValue(dom.requestDeliveryContactPhone);
-    const contactName = fieldValue(dom.requestContactName);
-    const email = fieldValue(dom.requestEmail);
-    const phone = fieldValue(dom.requestPhone);
-    const productCategories = fieldValue(dom.requestProductCategories);
-    const monthlyVolume = fieldValue(dom.requestMonthlyVolume);
-    const targetSalesChannel = fieldValue(dom.requestTargetSalesChannel);
+    const applicantName = fieldValue(dom.requestDisplayName);
+    const userName = fieldValue(dom.requestUserName).toLowerCase();
+    const password = fieldValue(dom.requestPassword);
+    const role = String(dom.requestRole?.value || "SALES_ENTRY").trim().toUpperCase();
+    const team = fieldValue(dom.requestTeam);
+    const position = fieldValue(dom.requestPosition);
     const reason = fieldValue(dom.requestReason);
-    if (
-      !companyName ||
-      !country ||
-      !companyNo ||
-      !vatId ||
-      !businessType ||
-      !channelType ||
-      !registeredAddress ||
-      !billingAddress ||
-      !shippingAddress ||
-      !invoiceEmail ||
-      !deliveryContactName ||
-      !deliveryContactPhone ||
-      !contactName ||
-      !email ||
-      !phone ||
-      !productCategories ||
-      !monthlyVolume ||
-      !targetSalesChannel ||
-      !reason ||
-      !dom.requestConfirmation?.checked
-    ) {
-      setAlert(dom.accountRequestAlert, tt("customer.registration.validationRequired"), "danger");
+    const allowedEmployeeRequestRoles = new Set(["SALES_ENTRY", "SALES_MANAGER", "BUSINESS_HEAD", "FINANCE_HEAD"]);
+
+    if (!applicantName || !userName || !password || !role || !team || !reason || !dom.requestConfirmation?.checked) {
+      setAlert(dom.accountRequestAlert, tt("auth.employeeRegistration.validationRequired"), "danger");
       return;
     }
-    const pendingRequest = state.data.customer_requests.find(
-      (item) =>
-        item.approval_status === "IN_PROGRESS" &&
-        (String(item.proposed_customer?.vat_id || "").toLowerCase() === vatId.toLowerCase() ||
-          String(item.proposed_customer?.company_no || "").toLowerCase() === companyNo.toLowerCase())
+    if (!allowedEmployeeRequestRoles.has(role)) {
+      setAlert(dom.accountRequestAlert, tr("员工注册入口只能申请内部员工角色。客户账号请由员工登录后在账号管理中创建。"), "danger");
+      return;
+    }
+    if (!isValidApplicantPassword(password)) {
+      setAlert(dom.accountRequestAlert, tr("申请密码必须同时包含英文字母和数字，且只能使用英文字母与数字。"), "danger");
+      return;
+    }
+    const primaryAdmin = findPrimaryAdministratorUser();
+    if (!primaryAdmin) {
+      setAlert(dom.accountRequestAlert, tr("系统尚未初始化管理员账号，暂不能提交账号申请。"), "danger");
+      return;
+    }
+    if (getUserByUserName(userName)) {
+      setAlert(dom.accountRequestAlert, tr("该登录账号已存在，请更换申请账号。"), "warn");
+      return;
+    }
+    const pendingRequest = state.data.account_requests.find(
+      (item) => item.approval_status === "PENDING" && String(item.requested_user_name || "").toLowerCase() === userName
     );
     if (pendingRequest) {
-      setAlert(dom.accountRequestAlert, tt("alerts.customerPendingRequest", { customerCode: companyNo, requestNo: pendingRequest.request_no }), "warn");
-      return;
-    }
-    const existingCustomer = state.data.customers.find(
-      (customer) =>
-        String(customer.vat_id || "").toLowerCase() === vatId.toLowerCase() ||
-        String(customer.company_no || "").toLowerCase() === companyNo.toLowerCase()
-    );
-    if (existingCustomer) {
-      setAlert(dom.accountRequestAlert, tr("该客户主档已存在，请联系销售负责人开通门户账号。"), "warn");
+      setAlert(dom.accountRequestAlert, tt("alerts.pendingAccountRequest", { requestNo: pendingRequest.request_no }), "warn");
       return;
     }
     const now = nowIso();
-    const primaryAdmin = findPrimaryAdministratorUser();
-    const businessHead = findFirstUserByRole("BUSINESS_HEAD") || primaryAdmin;
-    const financeHead = findFirstUserByRole("FINANCE_HEAD") || primaryAdmin;
-    const customerCode = buildBusinessNo("CUST", state.data.customers.concat(state.data.customer_requests.map((item) => ({ customer_code: item.customer_code }))));
-    const proposedCustomer = {
-      id: "",
-      customer_name: companyName,
-      customer_code: customerCode,
-      formal_cooperation_date: getTodayValue(),
-      customer_level: "B",
-      customer_type: businessType,
-      channel_type: channelType,
-      region: country,
-      country,
-      company_no: companyNo,
-      vat_id: vatId,
-      website: fieldValue(dom.requestWebsite),
-      contact_name: contactName,
-      contact_title: fieldValue(dom.requestJobTitle),
-      phone,
-      email,
-      address: registeredAddress,
-      billing_address: billingAddress,
-      shipping_address: shippingAddress,
-      invoice_email: invoiceEmail,
-      delivery_contact_name: deliveryContactName,
-      delivery_contact_phone: deliveryContactPhone,
-      delivery_address: shippingAddress,
-      preferred_language: fieldValue(dom.requestPreferredLanguage) || getCurrentLanguage(),
-      interested_product_categories: productCategories,
-      expected_monthly_purchase_volume: monthlyVolume,
-      target_sales_channel: targetSalesChannel,
-      existing_oppo_cooperation: fieldValue(dom.requestExistingCooperation),
-      business_license_document: fieldValue(dom.requestBusinessLicense),
-      vat_certificate_document: fieldValue(dom.requestVatCertificate),
-      additional_documents: fieldValue(dom.requestAdditionalDocuments),
-      payment_terms: "NET 14",
-      credit_limit: 0,
-      credit_used: 0,
-      portal_enabled: false,
-      customer_status: "DRAFT",
-      reverse_charge_eligible: Boolean(vatId),
-      default_currency: "EUR",
-      default_db_rate: 0.0334,
-      default_customer_margin: 0.124,
-      default_service_fee: 0.0012,
-      default_mkt_funding: 0,
-      default_stk_buffer: 5,
-      default_front_margin: 0.005,
-      default_vat: 0.2,
-      default_ura: 5.5,
-      default_approver_id: businessHead?.id || "",
-      remark: reason,
-      status: "ACTIVE",
+    const request = {
+      id: buildId("account_request"),
+      request_no: buildBusinessNo("ARQ", state.data.account_requests),
+      applicant_name: applicantName,
+      requested_user_name: userName,
+      requested_role: role,
+      requested_position: position,
+      requested_password: password,
+      team,
+      reason,
+      approval_status: "PENDING",
+      approver_id: primaryAdmin.id,
+      approver_name: primaryAdmin.display_name,
+      generated_user_id: "",
+      generated_password: "",
+      approved_at: "",
+      submitted_at: now,
       created_at: now,
       updated_at: now,
     };
-    const request = {
-      id: buildId("customer_request"),
-      request_no: buildBusinessNo("CRQ", state.data.customer_requests),
-      request_type: "NEW_CUSTOMER",
-      target_customer_id: "",
-      customer_name: companyName,
-      customer_code: customerCode,
-      proposed_customer: proposedCustomer,
-      before_customer: null,
-      summary: `${tt("customer.registration.title")}；${companyName} / ${country} / ${vatId}`,
-      policy_snapshot: `${tt("customer.registration.fields.productCategories")}: ${productCategories} / ${tt("customer.registration.fields.monthlyVolume")}: ${monthlyVolume}`,
-      approval_status: "IN_PROGRESS",
-      request_status: "PENDING_APPROVAL",
-      current_node: 1,
-      current_node_name: tr("业务负责人审批"),
-      approver_id: businessHead?.id || "",
-      approver_name: businessHead?.display_name || tr("管理员"),
-      finance_cc_id: financeHead?.id || "",
-      finance_cc_name: financeHead?.display_name || "",
-      finance_cc_status: tr("待抄送"),
-      finance_copied_at: "",
-      initiated_by: "external_partner",
-      initiated_by_name: companyName,
-      initiated_at: now,
-      approved_at: "",
-      updated_at: now,
-      nodes: [
-        {
-          id: buildId("customer_request_node"),
-          node_order: 1,
-          node_name: tr("业务负责人审批"),
-          approver_id: businessHead?.id || "",
-          approver_name: businessHead?.display_name || tr("管理员"),
-          approval_status: "IN_PROGRESS",
-          approval_comment: "",
-          approved_at: "",
-        },
-      ],
-    };
-    state.data.customer_requests.unshift(request);
+    state.data.account_requests.unshift(request);
     writeLog(
-      "SUBMIT_NEW_CUSTOMER_REQUEST",
-      companyNo,
+      "SUBMIT_ACCOUNT_REQUEST",
+      userName,
       null,
-      { request_no: request.request_no, customer_name: companyName, vat_id: vatId },
-      buildVirtualOperator(tt("customer.registration.title"))
+      { request_no: request.request_no, requested_role: role, team, requested_position: position },
+      buildVirtualOperator(applicantName)
     );
     persistData();
     [
-      dom.requestCompanyName,
-      dom.requestCountryRegion,
-      dom.requestCompanyNo,
-      dom.requestVatId,
-      dom.requestWebsite,
-      dom.requestBusinessType,
-      dom.requestChannelType,
-      dom.requestRegisteredAddress,
-      dom.requestBillingAddress,
-      dom.requestShippingAddress,
-      dom.requestInvoiceEmail,
-      dom.requestDeliveryContactName,
-      dom.requestDeliveryContactPhone,
-      dom.requestContactName,
-      dom.requestJobTitle,
-      dom.requestEmail,
-      dom.requestPhone,
-      dom.requestProductCategories,
-      dom.requestMonthlyVolume,
-      dom.requestTargetSalesChannel,
-      dom.requestExistingCooperation,
+      dom.requestDisplayName,
+      dom.requestUserName,
+      dom.requestPassword,
+      dom.requestTeam,
+      dom.requestPosition,
       dom.requestReason,
-      dom.requestBusinessLicense,
-      dom.requestVatCertificate,
-      dom.requestAdditionalDocuments,
     ].forEach((input) => {
       if (input) input.value = "";
     });
+    if (dom.requestRole) {
+      dom.requestRole.value = "SALES_ENTRY";
+    }
     if (dom.requestConfirmation) {
       dom.requestConfirmation.checked = false;
     }
     renderAll();
-    setAlert(dom.accountRequestAlert, tt("customer.registration.success", { requestNo: request.request_no }), "success");
+    setAlert(dom.accountRequestAlert, tt("auth.employeeRegistration.success", { requestNo: request.request_no }), "success");
   }
 
   function renderMasterOptions() {
@@ -6419,27 +6318,27 @@
       customer_type: String(dom.customerType?.value || "").trim() || "RETAIL",
       channel_type: String(dom.customerChannelType?.value || "").trim() || "OFFLINE",
       region: String(dom.customerRegion?.value || "").trim(),
+      country: String(dom.customerCountry?.value || "").trim() || String(dom.customerRegion?.value || "").trim(),
+      company_no: String(dom.customerCompanyNo?.value || "").trim() || exists?.company_no || generatedCode,
+      vat_id: String(dom.customerVatId?.value || "").trim(),
       contact_name: String(dom.customerContactName?.value || "").trim(),
       phone: String(dom.customerPhone?.value || "").trim(),
       email: String(dom.customerEmail?.value || "").trim(),
       address: String(dom.customerAddress?.value || "").trim(),
-      vat_id: exists?.vat_id || "",
-      company_no: exists?.company_no || generatedCode,
-      country: exists?.country || String(dom.customerRegion?.value || "").trim(),
-      billing_address: exists?.billing_address || String(dom.customerAddress?.value || "").trim(),
-      shipping_address: exists?.shipping_address || String(dom.customerAddress?.value || "").trim(),
-      payment_terms: exists?.payment_terms || "PREPAID",
-      credit_limit: roundMoney(exists?.credit_limit ?? 0),
-      credit_used: roundMoney(exists?.credit_used ?? 0),
-      portal_enabled: Boolean(exists?.portal_enabled ?? true),
+      billing_address: String(dom.customerBillingAddress?.value || "").trim() || String(dom.customerAddress?.value || "").trim(),
+      shipping_address: String(dom.customerShippingAddress?.value || "").trim() || String(dom.customerAddress?.value || "").trim(),
+      payment_terms: String(dom.customerPaymentTerms?.value || "").trim() || "PREPAID",
+      credit_limit: roundMoney(dom.customerCreditLimit?.value),
+      credit_used: roundMoney(dom.customerCreditUsed?.value),
+      portal_enabled: String(dom.customerPortalEnabled?.value || "true") === "true",
       sales_owner_id: exists?.sales_owner_id || "",
       default_currency: exists?.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
-      invoice_email: exists?.invoice_email || String(dom.customerEmail?.value || "").trim(),
-      delivery_contact_name: exists?.delivery_contact_name || String(dom.customerContactName?.value || "").trim(),
-      delivery_contact_phone: exists?.delivery_contact_phone || String(dom.customerPhone?.value || "").trim(),
-      delivery_address: exists?.delivery_address || String(dom.customerAddress?.value || "").trim(),
-      customer_status: exists?.customer_status || "ACTIVE",
-      reverse_charge_eligible: Boolean(exists?.reverse_charge_eligible),
+      invoice_email: String(dom.customerInvoiceEmail?.value || "").trim() || String(dom.customerEmail?.value || "").trim(),
+      delivery_contact_name: String(dom.customerDeliveryContactName?.value || "").trim() || String(dom.customerContactName?.value || "").trim(),
+      delivery_contact_phone: String(dom.customerDeliveryContactPhone?.value || "").trim() || String(dom.customerPhone?.value || "").trim(),
+      delivery_address: String(dom.customerDeliveryAddress?.value || "").trim() || String(dom.customerShippingAddress?.value || "").trim() || String(dom.customerAddress?.value || "").trim(),
+      customer_status: String(dom.customerStatus?.value || "ACTIVE").trim(),
+      reverse_charge_eligible: String(dom.customerReverseChargeEligible?.value || "false") === "true",
       default_db_rate: toRateInput(dom.customerDbRate?.value, 0),
       default_customer_margin: toRateInput(dom.customerCustomerMargin?.value, 0),
       default_service_fee: toRateInput(dom.customerServiceFee?.value, 0),
@@ -6585,10 +6484,25 @@
       customer_type: String(dom.customerType?.value || "").trim() || "RETAIL",
       channel_type: String(dom.customerChannelType?.value || "").trim() || "OFFLINE",
       region: String(dom.customerRegion?.value || "").trim(),
+      country: String(dom.customerCountry?.value || "").trim() || String(dom.customerRegion?.value || "").trim(),
+      company_no: String(dom.customerCompanyNo?.value || "").trim() || generatedCode,
+      vat_id: String(dom.customerVatId?.value || "").trim(),
       contact_name: String(dom.customerContactName?.value || "").trim(),
       phone: String(dom.customerPhone?.value || "").trim(),
       email: String(dom.customerEmail?.value || "").trim(),
       address: String(dom.customerAddress?.value || "").trim(),
+      billing_address: String(dom.customerBillingAddress?.value || "").trim() || String(dom.customerAddress?.value || "").trim(),
+      shipping_address: String(dom.customerShippingAddress?.value || "").trim() || String(dom.customerAddress?.value || "").trim(),
+      invoice_email: String(dom.customerInvoiceEmail?.value || "").trim() || String(dom.customerEmail?.value || "").trim(),
+      delivery_contact_name: String(dom.customerDeliveryContactName?.value || "").trim() || String(dom.customerContactName?.value || "").trim(),
+      delivery_contact_phone: String(dom.customerDeliveryContactPhone?.value || "").trim() || String(dom.customerPhone?.value || "").trim(),
+      delivery_address: String(dom.customerDeliveryAddress?.value || "").trim() || String(dom.customerShippingAddress?.value || "").trim() || String(dom.customerAddress?.value || "").trim(),
+      payment_terms: String(dom.customerPaymentTerms?.value || "").trim() || "PREPAID",
+      credit_limit: roundMoney(dom.customerCreditLimit?.value),
+      credit_used: roundMoney(dom.customerCreditUsed?.value),
+      portal_enabled: String(dom.customerPortalEnabled?.value || "true") === "true",
+      customer_status: String(dom.customerStatus?.value || "DRAFT").trim(),
+      reverse_charge_eligible: String(dom.customerReverseChargeEligible?.value || "false") === "true",
       default_db_rate: toRateInput(dom.customerDbRate?.value, 0),
       default_customer_margin: toRateInput(dom.customerCustomerMargin?.value, 0),
       default_service_fee: toRateInput(dom.customerServiceFee?.value, 0),
@@ -6686,10 +6600,31 @@
     setInputValue(dom.customerType, "RETAIL");
     setInputValue(dom.customerChannelType, "OFFLINE");
     setInputValue(dom.customerRegion, "");
+    setInputValue(dom.customerCountry, "");
+    setInputValue(dom.customerCompanyNo, "");
+    setInputValue(dom.customerVatId, "");
     setInputValue(dom.customerContactName, "");
     setInputValue(dom.customerPhone, "");
     setInputValue(dom.customerEmail, "");
     setInputValue(dom.customerAddress, "");
+    setInputValue(dom.customerBillingAddress, "");
+    setInputValue(dom.customerShippingAddress, "");
+    setInputValue(dom.customerInvoiceEmail, "");
+    setInputValue(dom.customerDeliveryContactName, "");
+    setInputValue(dom.customerDeliveryContactPhone, "");
+    setInputValue(dom.customerDeliveryAddress, "");
+    setInputValue(dom.customerPaymentTerms, "PREPAID");
+    setInputValue(dom.customerCreditLimit, "0");
+    setInputValue(dom.customerCreditUsed, "0");
+    if (dom.customerPortalEnabled) {
+      dom.customerPortalEnabled.value = "true";
+    }
+    if (dom.customerStatus) {
+      dom.customerStatus.value = "DRAFT";
+    }
+    if (dom.customerReverseChargeEligible) {
+      dom.customerReverseChargeEligible.value = "false";
+    }
     setInputValue(dom.customerDbRate, "0.0334");
     setInputValue(dom.customerCustomerMargin, "0.124");
     setInputValue(dom.customerServiceFee, "0.0012");
@@ -6713,7 +6648,7 @@
     if (dom.customerPanelTitle) {
       const titleMap = {
         master: tr("客户档案"),
-        registration: tr("客户注册审批"),
+        registration: tt("menu.customer.registrationReview"),
         price: tr("价格政策"),
         credit: tr("信用额度 / 账期"),
       };
@@ -6761,10 +6696,25 @@
       dom.customerType,
       dom.customerChannelType,
       dom.customerRegion,
+      dom.customerCountry,
+      dom.customerCompanyNo,
+      dom.customerVatId,
       dom.customerContactName,
       dom.customerPhone,
       dom.customerEmail,
       dom.customerAddress,
+      dom.customerBillingAddress,
+      dom.customerShippingAddress,
+      dom.customerInvoiceEmail,
+      dom.customerDeliveryContactName,
+      dom.customerDeliveryContactPhone,
+      dom.customerDeliveryAddress,
+      dom.customerPaymentTerms,
+      dom.customerCreditLimit,
+      dom.customerCreditUsed,
+      dom.customerPortalEnabled,
+      dom.customerStatus,
+      dom.customerReverseChargeEligible,
       dom.customerDbRate,
       dom.customerCustomerMargin,
       dom.customerServiceFee,
@@ -6932,10 +6882,31 @@
     setInputValue(dom.customerType, customer.customer_type);
     setInputValue(dom.customerChannelType, customer.channel_type);
     setInputValue(dom.customerRegion, customer.region);
+    setInputValue(dom.customerCountry, customer.country || customer.region || "");
+    setInputValue(dom.customerCompanyNo, customer.company_no || "");
+    setInputValue(dom.customerVatId, customer.vat_id || "");
     setInputValue(dom.customerContactName, customer.contact_name || "");
     setInputValue(dom.customerPhone, customer.phone || "");
     setInputValue(dom.customerEmail, customer.email || "");
     setInputValue(dom.customerAddress, customer.address || "");
+    setInputValue(dom.customerBillingAddress, customer.billing_address || customer.address || "");
+    setInputValue(dom.customerShippingAddress, customer.shipping_address || customer.address || "");
+    setInputValue(dom.customerInvoiceEmail, customer.invoice_email || customer.email || "");
+    setInputValue(dom.customerDeliveryContactName, customer.delivery_contact_name || customer.contact_name || "");
+    setInputValue(dom.customerDeliveryContactPhone, customer.delivery_contact_phone || customer.phone || "");
+    setInputValue(dom.customerDeliveryAddress, customer.delivery_address || customer.shipping_address || customer.address || "");
+    setInputValue(dom.customerPaymentTerms, customer.payment_terms || "PREPAID");
+    setInputValue(dom.customerCreditLimit, customer.credit_limit ?? 0);
+    setInputValue(dom.customerCreditUsed, customer.credit_used ?? 0);
+    if (dom.customerPortalEnabled) {
+      dom.customerPortalEnabled.value = String(Boolean(customer.portal_enabled ?? true));
+    }
+    if (dom.customerStatus) {
+      dom.customerStatus.value = customer.customer_status || "ACTIVE";
+    }
+    if (dom.customerReverseChargeEligible) {
+      dom.customerReverseChargeEligible.value = String(Boolean(customer.reverse_charge_eligible));
+    }
     setInputValue(dom.customerDbRate, customer.default_db_rate);
     setInputValue(dom.customerCustomerMargin, customer.default_customer_margin);
     setInputValue(dom.customerServiceFee, customer.default_service_fee);
@@ -6972,10 +6943,31 @@
     setInputValue(dom.customerType, proposed.customer_type || "RETAIL");
     setInputValue(dom.customerChannelType, proposed.channel_type || "OFFLINE");
     setInputValue(dom.customerRegion, proposed.region || "");
+    setInputValue(dom.customerCountry, proposed.country || proposed.region || "");
+    setInputValue(dom.customerCompanyNo, proposed.company_no || proposed.customer_code || "");
+    setInputValue(dom.customerVatId, proposed.vat_id || "");
     setInputValue(dom.customerContactName, proposed.contact_name || "");
     setInputValue(dom.customerPhone, proposed.phone || "");
     setInputValue(dom.customerEmail, proposed.email || "");
     setInputValue(dom.customerAddress, proposed.address || "");
+    setInputValue(dom.customerBillingAddress, proposed.billing_address || proposed.address || "");
+    setInputValue(dom.customerShippingAddress, proposed.shipping_address || proposed.address || "");
+    setInputValue(dom.customerInvoiceEmail, proposed.invoice_email || proposed.email || "");
+    setInputValue(dom.customerDeliveryContactName, proposed.delivery_contact_name || proposed.contact_name || "");
+    setInputValue(dom.customerDeliveryContactPhone, proposed.delivery_contact_phone || proposed.phone || "");
+    setInputValue(dom.customerDeliveryAddress, proposed.delivery_address || proposed.shipping_address || proposed.address || "");
+    setInputValue(dom.customerPaymentTerms, proposed.payment_terms || "PREPAID");
+    setInputValue(dom.customerCreditLimit, proposed.credit_limit ?? 0);
+    setInputValue(dom.customerCreditUsed, proposed.credit_used ?? 0);
+    if (dom.customerPortalEnabled) {
+      dom.customerPortalEnabled.value = String(Boolean(proposed.portal_enabled ?? false));
+    }
+    if (dom.customerStatus) {
+      dom.customerStatus.value = proposed.customer_status || "DRAFT";
+    }
+    if (dom.customerReverseChargeEligible) {
+      dom.customerReverseChargeEligible.value = String(Boolean(proposed.reverse_charge_eligible));
+    }
     setInputValue(dom.customerDbRate, proposed.default_db_rate ?? 0);
     setInputValue(dom.customerCustomerMargin, proposed.default_customer_margin ?? 0);
     setInputValue(dom.customerServiceFee, proposed.default_service_fee ?? 0);

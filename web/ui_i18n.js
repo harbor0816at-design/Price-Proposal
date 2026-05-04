@@ -12,11 +12,11 @@
 
   const I18N = {
     zh: {
-      portal: { admin: "B2B管理后台", pricingCenter: "价格与报价中台", customerTitle: "B2B合作伙伴订购门户", signedInAccount: "当前登录账号", signOut: "退出登录", refreshData: "刷新数据", language: "界面语言", notSignedIn: "未登录", signInFirst: "请先登录" },
+      portal: { admin: "员工工作台", pricingCenter: "B2B交易系统", customerTitle: "B2B客户订购门户", signedInAccount: "当前登录账号", signOut: "退出登录", refreshData: "刷新数据", language: "界面语言", notSignedIn: "未登录", signInFirst: "请先登录" },
       menu: {
         workspace: { title: "管理工作台", overview: "业务总览", tasks: "我的待办", risks: "风险提醒" },
         trade: { title: "交易管理", quoteManagement: "报价管理", orderManagement: "订单管理", approvalManagement: "审批管理", invoiceManagement: "发票管理", shipmentManagement: "发货管理" },
-        customer: { title: "客户管理", profiles: "客户档案", registrationReview: "客户注册审批", accounts: "客户账号", pricingPolicies: "价格政策", creditTerms: "信用额度 / 账期" },
+        customer: { title: "客户管理", profiles: "客户档案", registrationReview: "客户开户注册审批", accounts: "客户账号", pricingPolicies: "价格政策", creditTerms: "信用额度 / 账期" },
         inventory: { title: "商品与库存", catalog: "商品档案", inventoryManagement: "库存管理", inventoryLocks: "库存锁定", lowStockAlerts: "低库存预警" },
         system: { title: "系统配置", formulaManagement: "公式管理", batchImport: "批量导入", companyInvoiceSettings: "公司与发票设置", permissionManagement: "权限管理", operationLogs: "操作日志" },
       },
@@ -24,7 +24,7 @@
       status: { DRAFT: "草稿", SUBMITTED: "已提交", PENDING_APPROVAL: "待审批", IN_APPROVAL: "审批中", APPROVED: "已批准", REJECTED: "已驳回", INVOICE_GENERATED: "已生成发票", AWAITING_PAYMENT: "待付款", PAYMENT_CONFIRMED: "付款已确认", READY_TO_SHIP: "待发货", SHIPPED: "已发货", COMPLETED: "已完成", CANCELLED: "已取消", NOT_REQUIRED: "无需审批", NOT_GENERATED: "未生成", PI_GENERATED: "PI已生成", GENERATED: "已生成", SENT: "已发送", PAID: "已付款", NOT_READY: "未就绪", PENDING: "待处理", DELIVERED: "已送达", PARTIAL_PAID: "部分付款", CREDIT_TERM_CONFIRMED: "账期已确认", ACTIVE: "已生效", INACTIVE: "已停用" },
       customer: {
         registration: {
-          title: "B2B合作伙伴注册", eyebrow: "合作伙伴注册", intro: "申请成为Rfriend Services GmbH / OPPO Austria授权B2B合作伙伴。提交后，我们的销售与财务团队将审核您的公司信息、VAT资料、合作意向和信用条件。审核通过后，您将获得B2B客户门户账号，用于查看专属价格、可销售库存、订单、发票和发货状态。", submit: "提交合作伙伴申请", success: "您的B2B合作伙伴注册申请已提交。申请编号：{requestNo}。我们的销售与财务团队将进行审核。", requiredHint: "带 * 的字段为必填项。", confirmation: "我确认以上信息真实有效，并同意 Rfriend Services GmbH 使用这些信息进行B2B合作伙伴审核。", validationRequired: "请填写所有必填字段并确认信息真实有效。",
+          title: "客户开户注册（员工代录）", eyebrow: "客户开户注册", intro: "客户开户注册由内部员工登录 B2B交易系统后完成。员工需在客户管理中录入公司、VAT、开票、收货、合作意向和信用资料，并提交内部审批。", submit: "提交客户开户申请", success: "客户开户申请已提交。申请编号：{requestNo}。销售与财务团队将进行审核。", requiredHint: "带 * 的字段为必填项。", confirmation: "我确认以上客户信息由内部员工代录，并将用于B2B客户开户注册审核。", validationRequired: "请填写所有必填字段并确认信息真实有效。",
           steps: { company: "公司信息", billing: "开票与收货信息", contact: "联系人信息", intention: "合作意向", documents: "文件与确认" },
           descriptions: { company: "请填写法人主体与商业类型，用于客户主档和VAT审核。", billing: "这些信息将用于报价、形式发票、商业发票和发货指令。", contact: "我们会通过以下联系人完成开户注册和后续商务沟通。", intention: "帮助销售团队判断合作范围、价格政策和信用条件。", documents: "可先填写文件名称或链接，正式审核时销售团队会跟进原件。" },
           fields: { companyName: "公司名称 *", countryRegion: "国家 / 地区 *", companyNo: "公司注册号 *", vatId: "VAT ID *", website: "公司网站", businessType: "业务类型 *", channelType: "渠道类型 *", registeredAddress: "注册地址 *", billingAddress: "开票地址 *", shippingAddress: "收货地址 *", invoiceEmail: "发票邮箱 *", deliveryContactName: "收货联系人 *", deliveryContactPhone: "收货联系电话 *", contactName: "联系人姓名 *", jobTitle: "职位", email: "邮箱 *", phone: "电话 *", preferredLanguage: "首选语言", productCategories: "感兴趣的产品类别 *", monthlyVolume: "预计月采购量 *", targetSalesChannel: "目标销售渠道 *", existingCooperation: "是否已有OPPO合作", applicationReason: "申请原因 *", businessLicense: "营业执照 / 公司注册文件", vatCertificate: "VAT证书", additionalDocuments: "其他文件" },
@@ -32,11 +32,11 @@
       },
     },
     en: {
-      portal: { admin: "B2B Admin Portal", pricingCenter: "Pricing & Quotation Center", customerTitle: "B2B Partner Ordering Portal", signedInAccount: "Signed-in Account", signOut: "Sign Out", refreshData: "Refresh Data", language: "Language", notSignedIn: "Not Signed In", signInFirst: "Please sign in first" },
+      portal: { admin: "Employee Workspace", pricingCenter: "B2B Transaction System", customerTitle: "B2B Customer Ordering Portal", signedInAccount: "Signed-in Account", signOut: "Sign Out", refreshData: "Refresh Data", language: "Language", notSignedIn: "Not Signed In", signInFirst: "Please sign in first" },
       menu: {
         workspace: { title: "Management Workspace", overview: "Business Overview", tasks: "My Tasks", risks: "Risk Alerts" },
         trade: { title: "Trade Management", quoteManagement: "Quotation Management", orderManagement: "Order Management", approvalManagement: "Approval Management", invoiceManagement: "Invoice Management", shipmentManagement: "Shipment Management" },
-        customer: { title: "Customer Management", profiles: "Customer Profiles", registrationReview: "Customer Registration Review", accounts: "Customer Accounts", pricingPolicies: "Pricing Policies", creditTerms: "Credit Limit / Payment Terms" },
+        customer: { title: "Customer Management", profiles: "Customer Profiles", registrationReview: "Customer Onboarding Review", accounts: "Customer Accounts", pricingPolicies: "Pricing Policies", creditTerms: "Credit Limit / Payment Terms" },
         inventory: { title: "Products & Inventory", catalog: "Product Catalog", inventoryManagement: "Inventory Management", inventoryLocks: "Inventory Locks", lowStockAlerts: "Low Stock Alerts" },
         system: { title: "System Settings", formulaManagement: "Formula Management", batchImport: "Batch Import", companyInvoiceSettings: "Company & Invoice Settings", permissionManagement: "Permission Management", operationLogs: "Operation Logs" },
       },
@@ -44,7 +44,7 @@
       status: { DRAFT: "Draft", SUBMITTED: "Submitted", PENDING_APPROVAL: "Pending Approval", IN_APPROVAL: "In Approval", APPROVED: "Approved", REJECTED: "Rejected", INVOICE_GENERATED: "Invoice Generated", AWAITING_PAYMENT: "Awaiting Payment", PAYMENT_CONFIRMED: "Payment Confirmed", READY_TO_SHIP: "Ready to Ship", SHIPPED: "Shipped", COMPLETED: "Completed", CANCELLED: "Cancelled", NOT_REQUIRED: "Not Required", NOT_GENERATED: "Not Generated", PI_GENERATED: "PI Generated", GENERATED: "Generated", SENT: "Sent", PAID: "Paid", NOT_READY: "Not Ready", PENDING: "Pending", DELIVERED: "Delivered", PARTIAL_PAID: "Partial Paid", CREDIT_TERM_CONFIRMED: "Credit Term Confirmed", ACTIVE: "Active", INACTIVE: "Inactive" },
       customer: {
         registration: {
-          title: "B2B Partner Registration", eyebrow: "Partner Registration", intro: "Apply to become an authorized B2B partner of Rfriend Services GmbH / OPPO Austria. After submission, our sales and finance teams will review your company information, VAT details, business intention, and payment conditions. Once approved, you will receive access to the B2B Partner Portal to view your dedicated prices, available stock, orders, invoices, and shipment status.", submit: "Submit Partner Application", success: "Your B2B partner registration has been submitted. Request No.: {requestNo}. Our sales and finance teams will review it.", requiredHint: "Fields marked with * are required.", confirmation: "I confirm that the information provided is accurate and authorize Rfriend Services GmbH to use it for B2B partner review.", validationRequired: "Please complete all required fields and confirm that the information is accurate.",
+          title: "Customer Onboarding (Employee Entry)", eyebrow: "Customer Onboarding", intro: "Customer onboarding is completed by internal employees after signing in to the B2B Transaction System. Employees enter company, VAT, billing, shipping, business intention, and credit information in Customer Management, then submit it for internal approval.", submit: "Submit Customer Onboarding Request", success: "Customer onboarding request has been submitted. Request No.: {requestNo}. Sales and finance teams will review it.", requiredHint: "Fields marked with * are required.", confirmation: "I confirm that this customer information was entered by an internal employee and will be used for B2B customer onboarding review.", validationRequired: "Please complete all required fields and confirm that the information is accurate.",
           steps: { company: "Company Information", billing: "Billing & Shipping Information", contact: "Contact Person", intention: "Business Intention", documents: "Documents & Confirmation" },
           descriptions: { company: "Provide the legal entity and business profile for customer master data and VAT review.", billing: "These details are used for quotations, Proforma Invoices, Commercial Invoices, and delivery instructions.", contact: "We will use this contact for onboarding and commercial communication.", intention: "This helps sales review the cooperation scope, pricing policy, and credit conditions.", documents: "You may enter document names or links first; our sales team will follow up for originals if needed." },
           fields: { companyName: "Company Name *", countryRegion: "Country / Region *", companyNo: "Company Registration No. *", vatId: "VAT ID *", website: "Company Website", businessType: "Business Type *", channelType: "Channel Type *", registeredAddress: "Registered Address *", billingAddress: "Billing Address *", shippingAddress: "Shipping Address *", invoiceEmail: "Invoice Email *", deliveryContactName: "Delivery Contact Name *", deliveryContactPhone: "Delivery Contact Phone *", contactName: "Contact Name *", jobTitle: "Job Title", email: "Email *", phone: "Phone *", preferredLanguage: "Preferred Language", productCategories: "Interested Product Categories *", monthlyVolume: "Expected Monthly Purchase Volume *", targetSalesChannel: "Target Sales Channel *", existingCooperation: "Existing OPPO Cooperation", applicationReason: "Application Reason *", businessLicense: "Business License / Company Registration Document", vatCertificate: "VAT Certificate", additionalDocuments: "Additional Documents" },
@@ -52,11 +52,11 @@
       },
     },
     de: {
-      portal: { admin: "B2B-Admin-Portal", pricingCenter: "Preis- und Angebotszentrale", customerTitle: "B2B-Partner-Bestellportal", signedInAccount: "Angemeldetes Konto", signOut: "Abmelden", refreshData: "Daten aktualisieren", language: "Sprache", notSignedIn: "Nicht angemeldet", signInFirst: "Bitte zuerst anmelden" },
+      portal: { admin: "Mitarbeiter-Arbeitsbereich", pricingCenter: "B2B-Transaktionssystem", customerTitle: "B2B-Kundenbestellportal", signedInAccount: "Angemeldetes Konto", signOut: "Abmelden", refreshData: "Daten aktualisieren", language: "Sprache", notSignedIn: "Nicht angemeldet", signInFirst: "Bitte zuerst anmelden" },
       menu: {
         workspace: { title: "Management-Arbeitsbereich", overview: "Geschäftsübersicht", tasks: "Meine Aufgaben", risks: "Risikohinweise" },
         trade: { title: "Transaktionsmanagement", quoteManagement: "Angebotsverwaltung", orderManagement: "Auftragsverwaltung", approvalManagement: "Freigabeverwaltung", invoiceManagement: "Rechnungsverwaltung", shipmentManagement: "Versandverwaltung" },
-        customer: { title: "Kundenverwaltung", profiles: "Kundenprofile", registrationReview: "Prüfung der Kundenregistrierung", accounts: "Kundenkonten", pricingPolicies: "Preisrichtlinien", creditTerms: "Kreditlimit / Zahlungsbedingungen" },
+        customer: { title: "Kundenverwaltung", profiles: "Kundenprofile", registrationReview: "Prüfung des Kunden-Onboardings", accounts: "Kundenkonten", pricingPolicies: "Preisrichtlinien", creditTerms: "Kreditlimit / Zahlungsbedingungen" },
         inventory: { title: "Produkte & Bestand", catalog: "Produktkatalog", inventoryManagement: "Bestandsverwaltung", inventoryLocks: "Bestandsreservierungen", lowStockAlerts: "Warnungen bei niedrigem Bestand" },
         system: { title: "Systemeinstellungen", formulaManagement: "Formelverwaltung", batchImport: "Massenimport", companyInvoiceSettings: "Unternehmens- & Rechnungseinstellungen", permissionManagement: "Berechtigungsverwaltung", operationLogs: "Aktivitätsprotokolle" },
       },
@@ -64,7 +64,7 @@
       status: { DRAFT: "Entwurf", SUBMITTED: "Eingereicht", PENDING_APPROVAL: "Freigabe ausstehend", IN_APPROVAL: "In Freigabe", APPROVED: "Freigegeben", REJECTED: "Abgelehnt", INVOICE_GENERATED: "Rechnung erstellt", AWAITING_PAYMENT: "Zahlung ausstehend", PAYMENT_CONFIRMED: "Zahlung bestätigt", READY_TO_SHIP: "Versandbereit", SHIPPED: "Versendet", COMPLETED: "Abgeschlossen", CANCELLED: "Storniert", NOT_REQUIRED: "Nicht erforderlich", NOT_GENERATED: "Nicht erstellt", PI_GENERATED: "PI erstellt", GENERATED: "Erstellt", SENT: "Gesendet", PAID: "Bezahlt", NOT_READY: "Nicht bereit", PENDING: "Ausstehend", DELIVERED: "Zugestellt", PARTIAL_PAID: "Teilweise bezahlt", CREDIT_TERM_CONFIRMED: "Zahlungsziel bestätigt", ACTIVE: "Aktiv", INACTIVE: "Inaktiv" },
       customer: {
         registration: {
-          title: "B2B-Partnerregistrierung", eyebrow: "Partnerregistrierung", intro: "Beantragen Sie die Registrierung als autorisierter B2B-Partner von Rfriend Services GmbH / OPPO Austria. Nach der Einreichung prüfen unser Vertriebs- und Finanzteam Ihre Unternehmensdaten, USt-IdNr., Geschäftsabsicht und Zahlungsbedingungen. Nach der Freigabe erhalten Sie Zugang zum B2B-Partnerportal, um Ihre individuellen Preise, verfügbaren Bestände, Aufträge, Rechnungen und Versandstatus einzusehen.", submit: "Partnerantrag einreichen", success: "Ihre B2B-Partnerregistrierung wurde eingereicht. Antragsnr.: {requestNo}. Unser Vertriebs- und Finanzteam wird den Antrag prüfen.", requiredHint: "Mit * gekennzeichnete Felder sind Pflichtfelder.", confirmation: "Ich bestätige, dass die angegebenen Informationen korrekt sind, und ermächtige Rfriend Services GmbH, diese für die Prüfung als B2B-Partner zu verwenden.", validationRequired: "Bitte füllen Sie alle Pflichtfelder aus und bestätigen Sie die Richtigkeit der Angaben.",
+          title: "Kunden-Onboarding (Mitarbeitereingabe)", eyebrow: "Kunden-Onboarding", intro: "Das Kunden-Onboarding wird nach der Anmeldung im B2B-Transaktionssystem durch interne Mitarbeiter durchgeführt. Mitarbeiter erfassen Unternehmens-, USt-, Rechnungs-, Liefer-, Geschäftsabsichts- und Kreditinformationen in der Kundenverwaltung und reichen sie zur internen Freigabe ein.", submit: "Kunden-Onboarding-Antrag einreichen", success: "Der Kunden-Onboarding-Antrag wurde eingereicht. Antragsnr.: {requestNo}. Vertrieb und Finanzen prüfen den Antrag.", requiredHint: "Mit * gekennzeichnete Felder sind Pflichtfelder.", confirmation: "Ich bestätige, dass diese Kundeninformationen von einem internen Mitarbeiter erfasst wurden und für die B2B-Kunden-Onboarding-Prüfung verwendet werden.", validationRequired: "Bitte füllen Sie alle Pflichtfelder aus und bestätigen Sie die Richtigkeit der Angaben.",
           steps: { company: "Unternehmensinformationen", billing: "Rechnungs- und Lieferinformationen", contact: "Ansprechpartner", intention: "Geschäftsabsicht", documents: "Dokumente & Bestätigung" },
           descriptions: { company: "Bitte geben Sie Rechtsträger und Geschäftsprofil für Kundenstamm und USt-Prüfung an.", billing: "Diese Angaben werden für Angebote, Proforma-Rechnungen, Handelsrechnungen und Lieferanweisungen verwendet.", contact: "Diesen Kontakt nutzen wir für Onboarding und geschäftliche Abstimmung.", intention: "Dies hilft dem Vertrieb, Kooperationsumfang, Preisrichtlinie und Kreditbedingungen zu prüfen.", documents: "Sie können zunächst Dokumentnamen oder Links angeben; unser Vertrieb fordert bei Bedarf Originale an." },
           fields: { companyName: "Firmenname *", countryRegion: "Land / Region *", companyNo: "Handelsregisternr. *", vatId: "USt-IdNr. *", website: "Unternehmenswebsite", businessType: "Geschäftstyp *", channelType: "Vertriebskanal *", registeredAddress: "Registrierte Adresse *", billingAddress: "Rechnungsadresse *", shippingAddress: "Lieferadresse *", invoiceEmail: "Rechnungs-E-Mail *", deliveryContactName: "Lieferkontakt *", deliveryContactPhone: "Telefon Lieferkontakt *", contactName: "Name des Ansprechpartners *", jobTitle: "Position", email: "E-Mail *", phone: "Telefon *", preferredLanguage: "Bevorzugte Sprache", productCategories: "Interessierte Produktkategorien *", monthlyVolume: "Erwartetes monatliches Einkaufsvolumen *", targetSalesChannel: "Ziel-Vertriebskanal *", existingCooperation: "Bestehende OPPO-Kooperation", applicationReason: "Antragsbegründung *", businessLicense: "Gewerbeschein / Handelsregisterdokument", vatCertificate: "USt-Zertifikat", additionalDocuments: "Weitere Dokumente" },
@@ -149,7 +149,7 @@
       en: "Only super admin harbor can clear operation logs.",
       de: "Nur der Super-Admin harbor kann Aktionsprotokolle leeren.",
     },
-    "客户报价管理系统": { en: "Customer Quote Management System", de: "Kundenangebotsverwaltung" },
+    "B2B交易系统": { en: "B2B Transaction System", de: "B2B-Transaktionssystem" },
     "面向手机/消费电子行业的报价、审批与预警后台原型": {
       en: "Quotation, approval, and warning workflow prototype for the mobile and consumer electronics business.",
       de: "Workflow-Prototyp für Angebot, Freigabe und Warnhinweise im Mobile- und Consumer-Electronics-Geschäft.",
@@ -692,6 +692,14 @@
     "该登录账号已存在，请更换申请账号。": {
       en: "This login ID already exists. Please choose another requested login ID.",
       de: "Dieses Anmeldekonto existiert bereits. Bitte wählen Sie ein anderes beantragtes Konto.",
+    },
+    "员工注册入口只能申请内部员工角色。客户账号请由员工登录后在账号管理中创建。": {
+      en: "The employee registration entry can only request internal employee roles. Customer accounts must be created in Account Management after an employee signs in.",
+      de: "Über die Mitarbeiterregistrierung können nur interne Mitarbeiterrollen beantragt werden. Kundenkonten müssen nach der Anmeldung durch Mitarbeiter in der Kontoverwaltung erstellt werden.",
+    },
+    "系统尚未初始化管理员账号，暂不能提交账号申请。": {
+      en: "The administrator account has not been initialized yet, so account requests cannot be submitted.",
+      de: "Das Administratorkonto wurde noch nicht initialisiert, daher können derzeit keine Kontoanträge eingereicht werden.",
     },
     "只有管理员角色可以生成或维护账号。": {
       en: "Only administrator roles can create or maintain accounts.",
@@ -1479,6 +1487,55 @@
     "auth.loginUser": { zh: "登录账号", en: "Login ID", de: "Anmeldekonto" },
     "auth.loginPassword": { zh: "登录密码", en: "Password", de: "Passwort" },
     "auth.signIn": { zh: "登录系统", en: "Sign In", de: "Anmelden" },
+    "auth.employeeRegistration.eyebrow": { zh: "员工注册", en: "Employee Registration", de: "Mitarbeiterregistrierung" },
+    "auth.employeeRegistration.title": { zh: "员工账号申请", en: "Employee Account Request", de: "Mitarbeiter-Kontoantrag" },
+    "auth.employeeRegistration.intro": {
+      zh: "本入口仅用于内部员工申请 B2B交易系统账号。客户开户注册由员工登录系统后，在客户管理中替客户录入并提交审批。",
+      en: "This entry is only for internal employees to request access to the B2B Transaction System. Customer onboarding is completed by employees inside Customer Management after sign-in.",
+      de: "Dieser Einstieg ist nur für interne Mitarbeiter zur Beantragung eines Zugangs zum B2B-Transaktionssystem bestimmt. Kunden-Onboarding wird nach der Anmeldung durch Mitarbeiter in der Kundenverwaltung erfasst und zur Freigabe eingereicht."
+    },
+    "auth.employeeRegistration.requiredHint": { zh: "带 * 的字段为必填项。", en: "Fields marked with * are required.", de: "Mit * gekennzeichnete Felder sind Pflichtfelder." },
+    "auth.employeeRegistration.submit": { zh: "提交员工账号申请", en: "Submit Employee Account Request", de: "Mitarbeiter-Kontoantrag einreichen" },
+    "auth.employeeRegistration.success": {
+      zh: "员工账号申请 {requestNo} 已提交，等待系统管理员审批。",
+      en: "Employee account request {requestNo} has been submitted and is awaiting system administrator approval.",
+      de: "Der Mitarbeiter-Kontoantrag {requestNo} wurde eingereicht und wartet auf Freigabe durch den Systemadministrator."
+    },
+    "auth.employeeRegistration.confirmation": {
+      zh: "我确认该账号申请仅供公司内部员工使用，并遵守 B2B交易系统权限管理要求。",
+      en: "I confirm that this account request is for internal employee use only and follows the B2B Transaction System permission rules.",
+      de: "Ich bestätige, dass dieser Kontoantrag ausschließlich für interne Mitarbeiter bestimmt ist und den Berechtigungsregeln des B2B-Transaktionssystems entspricht."
+    },
+    "auth.employeeRegistration.steps.account": { zh: "账号信息", en: "Account Information", de: "Kontoinformationen" },
+    "auth.employeeRegistration.steps.organization": { zh: "组织信息", en: "Organization Information", de: "Organisationsinformationen" },
+    "auth.employeeRegistration.steps.confirmation": { zh: "确认提交", en: "Confirmation", de: "Bestätigung" },
+    "auth.employeeRegistration.descriptions.account": {
+      zh: "提交后由系统管理员审批，审批通过后可使用申请账号和密码登录。",
+      en: "After submission, a system administrator will review the request. Once approved, the requested login ID and password can be used to sign in.",
+      de: "Nach dem Einreichen prüft ein Systemadministrator den Antrag. Nach der Freigabe können das beantragte Konto und Passwort zur Anmeldung verwendet werden."
+    },
+    "auth.employeeRegistration.descriptions.organization": {
+      zh: "请填写所属团队和岗位，便于管理员分配审批和数据权限。",
+      en: "Provide your team and position so administrators can assign workflow and data permissions.",
+      de: "Geben Sie Team und Position an, damit Administratoren Workflow- und Datenberechtigungen zuweisen können."
+    },
+    "auth.employeeRegistration.descriptions.confirmation": {
+      zh: "客户资料、客户门户账号和价格政策必须由员工登录后在后台创建，不接受客户自助开户注册。",
+      en: "Customer profiles, customer portal accounts, and pricing policies must be created by employees in the admin system. Customer self-registration is not supported.",
+      de: "Kundenprofile, Kundenportal-Konten und Preisrichtlinien müssen von Mitarbeitern im Admin-System erstellt werden. Eine Selbstregistrierung von Kunden wird nicht unterstützt."
+    },
+    "auth.employeeRegistration.fields.displayName": { zh: "申请人姓名 *", en: "Applicant Name *", de: "Name des Antragstellers *" },
+    "auth.employeeRegistration.fields.userName": { zh: "申请登录账号 *", en: "Requested Login ID *", de: "Beantragtes Anmeldekonto *" },
+    "auth.employeeRegistration.fields.password": { zh: "申请密码 *", en: "Requested Password *", de: "Beantragtes Passwort *" },
+    "auth.employeeRegistration.fields.role": { zh: "申请角色 *", en: "Requested Role *", de: "Beantragte Rolle *" },
+    "auth.employeeRegistration.fields.team": { zh: "所属团队 *", en: "Team *", de: "Team *" },
+    "auth.employeeRegistration.fields.position": { zh: "岗位", en: "Position", de: "Position" },
+    "auth.employeeRegistration.fields.reason": { zh: "申请原因 *", en: "Reason *", de: "Begründung *" },
+    "auth.employeeRegistration.validationRequired": {
+      zh: "请完整填写申请人、申请账号、申请密码、申请角色、团队和申请原因，并确认内部员工使用声明。",
+      en: "Please complete applicant name, requested login ID, password, role, team, reason, and confirm the internal employee use statement.",
+      de: "Bitte füllen Sie Antragsteller, beantragtes Konto, Passwort, Rolle, Team und Begründung aus und bestätigen Sie die Erklärung zur internen Mitarbeiternutzung."
+    },
     "auth.demoAccounts": { zh: "演示账号", en: "Demo Accounts", de: "Demokonten" },
     "portal.customerAccount": { zh: "客户门户账号", en: "Customer Portal Account", de: "Kundenportalkonto" },
     "role.SALES_ENTRY": { zh: "客户经理", en: "Customer Manager", de: "Kundenmanager" },
@@ -2033,7 +2090,7 @@
 
   function refresh(root = document.body) {
     document.documentElement.lang = LANGUAGES[currentLanguage].htmlLang;
-    document.title = translatePhrase("客户报价管理系统");
+    document.title = translatePhrase("B2B交易系统");
     updateLanguageButtons();
     translateTree(root);
   }
