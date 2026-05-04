@@ -4,7 +4,7 @@ const { createRouter } = require("./routes/router");
 const { parseRequestUrl, sendJson, sendNoContent, serveStaticFile } = require("./utils/http");
 
 const PORT = Number(process.env.PORT || 3080);
-const WEB_ROOT = path.join(__dirname, "..", "web");
+const WEB_ROOT = path.join(__dirname, "..");
 const router = createRouter();
 
 const server = http.createServer(async (request, response) => {

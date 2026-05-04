@@ -36,6 +36,30 @@
     "Company No.: FN 654071w",
     "VAT ID: ATU82229928",
   ];
+  const DEFAULT_INVOICE_SETTINGS = {
+    seller_company_name: "Rfriend Services GmbH",
+    seller_address_line_1: "30th Floor, DC Tower 1",
+    seller_address_line_2: "Donau-City-Strasse 7",
+    seller_address_line_3: "1220 Vienna, Austria",
+    commercial_court: "Vienna",
+    company_no: "FN 654071w",
+    vat_id: "ATU82229928",
+    bank_name: "Erste Bank",
+    account_holder: "Rfriend Services GmbH",
+    iban: "AT36 2011 1854 3486 1400",
+    bic_swift: "GIBAATWWXXX",
+    default_currency: "EUR",
+    default_payment_days: 14,
+    customer_viewer_can_download_invoice: true,
+  };
+  const INVOICE_TYPES = ["PROFORMA_INVOICE", "COMMERCIAL_INVOICE", "CREDIT_NOTE"];
+  const INVOICE_STATUSES = ["DRAFT", "GENERATED", "SENT", "PAID", "CANCELLED"];
+  const PAYMENT_STATUSES = ["UNPAID", "PARTIAL_PAID", "PAID", "CREDIT_TERM_CONFIRMED"];
+  const SMV_RATES = {
+    PHONE: 5.5,
+    TABLET: 5.5,
+    SMARTWATCH: 1.3,
+  };
   const TEMP_ACCOUNT_PASSWORD = "Welcome@123";
   const PRIMARY_ADMIN_ID = "u_admin_01";
   const PRIMARY_ADMIN_USER_NAME = "harbor";
@@ -44,8 +68,36 @@
   const LEGACY_SEED_USER_IDS = new Set(["u_sales_01", "u_mgr_01", "u_business_01", "u_finance_01"]);
   const LEGACY_SEED_USER_NAMES = new Set(["li.sales", "wang.manager", "zhou.business", "liu.finance", "sun.admin"]);
   const INITIAL_DATA_MARKERS = ["审批中心初始化", "系统初始化", "INIT_APPROVAL_CENTER", "INIT_LOG"];
-  const ADMIN_PAGE_IDS = ["quoteQueryPage", "quoteCreatePage", "importPage", "formulaPage", "productPage", "customerPage", "approvalPage", "accountPage", "logPage"];
+  const ADMIN_PAGE_IDS = [
+    "dashboardPage",
+    "quoteQueryPage",
+    "quoteCreatePage",
+    "orderPage",
+    "inventoryPage",
+    "invoicePage",
+    "shipmentPage",
+    "importPage",
+    "formulaPage",
+    "productPage",
+    "customerPage",
+    "approvalPage",
+    "accountPage",
+    "logPage",
+  ];
   const ADMIN_ROLES = new Set(["BUSINESS_HEAD", "FINANCE_HEAD", "SYSTEM_ADMIN"]);
+  const INTERNAL_ROLES = new Set(["SALES_ENTRY", "SALES_MANAGER", "BUSINESS_HEAD", "FINANCE_HEAD", "SYSTEM_ADMIN"]);
+  const CUSTOMER_ROLES = new Set(["CUSTOMER_ADMIN", "CUSTOMER_BUYER", "CUSTOMER_VIEWER"]);
+  const CUSTOMER_PAGE_IDS = [
+    "customerDashboardPage",
+    "customerProductsPage",
+    "customerCartPage",
+    "customerOrdersPage",
+    "customerInvoicesPage",
+    "customerShipmentsPage",
+    "customerAccountPage",
+  ];
+  const CUSTOMER_PORTAL_DEFAULT_PAGE = "customerDashboardPage";
+  const INVENTORY_LOW_STOCK_THRESHOLD = 10;
   const CORE_PERMISSION_KEYS = {
     CREATE_CUSTOMER: "create_customer",
     CREATE_PRODUCT: "create_product",
@@ -55,8 +107,8 @@
   };
   const i18n = window.customerQuoteI18n || null;
   const PAGE_ACCESS_MAP = {
-    SALES_ENTRY: ["quoteQueryPage", "quoteCreatePage", "importPage", "customerPage"],
-    SALES_MANAGER: ["quoteQueryPage", "customerPage", "approvalPage"],
+    SALES_ENTRY: ["dashboardPage", "quoteQueryPage", "quoteCreatePage", "orderPage", "importPage", "customerPage"],
+    SALES_MANAGER: ["dashboardPage", "quoteQueryPage", "orderPage", "customerPage", "approvalPage"],
     BUSINESS_HEAD: ADMIN_PAGE_IDS,
     FINANCE_HEAD: ADMIN_PAGE_IDS,
     SYSTEM_ADMIN: ADMIN_PAGE_IDS,
@@ -65,7 +117,18 @@
   const state = {
     data: null,
     ui: {
-      currentPage: "quoteCreatePage",
+      currentPage: "dashboardPage",
+      currentNavKey: "dashboard-overview",
+      dashboardFocus: "overview",
+      customerFocus: "master",
+      inventoryFocus: "stock",
+      navGroups: {
+        workbench: true,
+        trade: false,
+        customer: false,
+        stock: false,
+        config: false,
+      },
       activeQuoteId: "",
       editingFormulaId: "",
       editingProductId: "",
@@ -85,6 +148,24 @@
         dateTo: "",
       },
       expandedLogIds: [],
+      currentCustomerPage: CUSTOMER_PORTAL_DEFAULT_PAGE,
+      customerProductQuantities: {},
+      expandedOrderIds: [],
+      activeInvoiceId: "",
+      invoiceFilters: {
+        invoiceNo: "",
+        orderNo: "",
+        customerName: "",
+        invoiceType: "",
+        invoiceStatus: "",
+        paymentStatus: "",
+        dateFrom: "",
+        dateTo: "",
+      },
+      customerInvoiceFilters: {
+        keyword: "",
+        status: "",
+      },
     },
   };
 
@@ -116,6 +197,28 @@
     return i18n?.getLanguage?.() || "zh";
   }
 
+  function isMissingI18n(value) {
+    return String(value || "").startsWith("[missing:");
+  }
+
+  function renderBusinessName(name) {
+    const normalized = String(name || "");
+    const keyMap = {
+      "德国核心连锁A": "businessName.germanCoreChainA",
+      "German Core Chain A": "businessName.germanCoreChainA",
+      "Deutsche Kernkette A": "businessName.germanCoreChainA",
+      "欧洲电商客户B": "businessName.europeEcommerceB",
+      "European E-commerce Customer B": "businessName.europeEcommerceB",
+      "Europäischer E-Commerce-Kunde B": "businessName.europeEcommerceB",
+    };
+    const key = keyMap[normalized];
+    if (!key) {
+      return normalized;
+    }
+    const translated = tt(key);
+    return isMissingI18n(translated) ? normalized : translated;
+  }
+
   function init() {
     cacheDom();
     loadData();
@@ -130,6 +233,7 @@
   function cacheDom() {
     dom.loginShell = document.getElementById("loginShell");
     dom.appShell = document.getElementById("appShell");
+    dom.customerPortalShell = document.getElementById("customerPortalShell");
     dom.loginUserName = document.getElementById("loginUserName");
     dom.loginPassword = document.getElementById("loginPassword");
     dom.loginBtn = document.getElementById("loginBtn");
@@ -139,17 +243,80 @@
     dom.requestPassword = document.getElementById("requestPassword");
     dom.requestTeam = document.getElementById("requestTeam");
     dom.requestReason = document.getElementById("requestReason");
+    dom.requestCompanyName = document.getElementById("requestCompanyName");
+    dom.requestCountryRegion = document.getElementById("requestCountryRegion");
+    dom.requestCompanyNo = document.getElementById("requestCompanyNo");
+    dom.requestVatId = document.getElementById("requestVatId");
+    dom.requestWebsite = document.getElementById("requestWebsite");
+    dom.requestBusinessType = document.getElementById("requestBusinessType");
+    dom.requestChannelType = document.getElementById("requestChannelType");
+    dom.requestRegisteredAddress = document.getElementById("requestRegisteredAddress");
+    dom.requestBillingAddress = document.getElementById("requestBillingAddress");
+    dom.requestShippingAddress = document.getElementById("requestShippingAddress");
+    dom.requestInvoiceEmail = document.getElementById("requestInvoiceEmail");
+    dom.requestDeliveryContactName = document.getElementById("requestDeliveryContactName");
+    dom.requestDeliveryContactPhone = document.getElementById("requestDeliveryContactPhone");
+    dom.requestContactName = document.getElementById("requestContactName");
+    dom.requestJobTitle = document.getElementById("requestJobTitle");
+    dom.requestEmail = document.getElementById("requestEmail");
+    dom.requestPhone = document.getElementById("requestPhone");
+    dom.requestPreferredLanguage = document.getElementById("requestPreferredLanguage");
+    dom.requestProductCategories = document.getElementById("requestProductCategories");
+    dom.requestMonthlyVolume = document.getElementById("requestMonthlyVolume");
+    dom.requestTargetSalesChannel = document.getElementById("requestTargetSalesChannel");
+    dom.requestExistingCooperation = document.getElementById("requestExistingCooperation");
+    dom.requestBusinessLicense = document.getElementById("requestBusinessLicense");
+    dom.requestVatCertificate = document.getElementById("requestVatCertificate");
+    dom.requestAdditionalDocuments = document.getElementById("requestAdditionalDocuments");
+    dom.requestConfirmation = document.getElementById("requestConfirmation");
     dom.submitAccountRequestBtn = document.getElementById("submitAccountRequestBtn");
     dom.accountRequestAlert = document.getElementById("accountRequestAlert");
 
     dom.navButtons = Array.from(document.querySelectorAll(".nav-item[data-page-target]"));
+    dom.navGroups = Array.from(document.querySelectorAll(".nav-group[data-nav-group]"));
+    dom.navGroupToggles = Array.from(document.querySelectorAll("[data-nav-group-toggle]"));
+    dom.customerNavButtons = Array.from(document.querySelectorAll(".nav-item[data-customer-page-target]"));
     dom.pageSections = Array.from(document.querySelectorAll(".page-section"));
+    dom.customerPageSections = Array.from(document.querySelectorAll(".customer-page-section"));
     dom.pageTitle = document.getElementById("pageTitle");
     dom.permissionIsolationHint = document.getElementById("permissionIsolationHint");
     dom.currentAccountName = document.getElementById("currentAccountName");
     dom.currentAccountMeta = document.getElementById("currentAccountMeta");
     dom.logoutBtn = document.getElementById("logoutBtn");
+    dom.customerLogoutBtn = document.getElementById("customerLogoutBtn");
     dom.refreshAllBtn = document.getElementById("refreshAllBtn");
+    dom.customerAccountChip = document.getElementById("customerAccountChip");
+
+    dom.adminDashboardCards = document.getElementById("adminDashboardCards");
+    dom.adminDashboardRoleHint = document.getElementById("adminDashboardRoleHint");
+    dom.dashboardQuickActions = document.getElementById("dashboardQuickActions");
+    dom.dashboardTradePipeline = document.getElementById("dashboardTradePipeline");
+    dom.dashboardTodoList = document.getElementById("dashboardTodoList");
+    dom.dashboardTodoSummary = document.getElementById("dashboardTodoSummary");
+    dom.dashboardRiskList = document.getElementById("dashboardRiskList");
+    dom.dashboardRiskSummary = document.getElementById("dashboardRiskSummary");
+    dom.dashboardOrdersTableBody = document.querySelector("#dashboardOrdersTable tbody");
+    dom.ordersSummary = document.getElementById("ordersSummary");
+    dom.orderAlert = document.getElementById("orderAlert");
+    dom.ordersTableBody = document.querySelector("#ordersTable tbody");
+    dom.inventoryTableBody = document.querySelector("#inventoryTable tbody");
+    dom.invoiceFilterForm = document.getElementById("invoiceFilterForm");
+    dom.invoiceFilterNo = document.getElementById("invoiceFilterNo");
+    dom.invoiceFilterOrderNo = document.getElementById("invoiceFilterOrderNo");
+    dom.invoiceFilterCustomerName = document.getElementById("invoiceFilterCustomerName");
+    dom.invoiceFilterType = document.getElementById("invoiceFilterType");
+    dom.invoiceFilterStatus = document.getElementById("invoiceFilterStatus");
+    dom.invoiceFilterPaymentStatus = document.getElementById("invoiceFilterPaymentStatus");
+    dom.invoiceFilterDateFrom = document.getElementById("invoiceFilterDateFrom");
+    dom.invoiceFilterDateTo = document.getElementById("invoiceFilterDateTo");
+    dom.queryInvoicesBtn = document.getElementById("queryInvoicesBtn");
+    dom.resetInvoiceFiltersBtn = document.getElementById("resetInvoiceFiltersBtn");
+    dom.invoiceAlert = document.getElementById("invoiceAlert");
+    dom.invoicesTableBody = document.querySelector("#invoicesTable tbody");
+    dom.invoiceReadyOrdersTableBody = document.querySelector("#invoiceReadyOrdersTable tbody");
+    dom.invoiceDetailHint = document.getElementById("invoiceDetailHint");
+    dom.invoiceDetailContent = document.getElementById("invoiceDetailContent");
+    dom.shipmentsTableBody = document.querySelector("#shipmentsTable tbody");
 
     dom.quoteQueryForm = document.getElementById("quoteQueryForm");
     dom.queryBatchKeywords = document.getElementById("queryBatchKeywords");
@@ -306,6 +473,9 @@
     dom.accountUserName = document.getElementById("accountUserName");
     dom.accountRole = document.getElementById("accountRole");
     dom.accountTeam = document.getElementById("accountTeam");
+    dom.accountType = document.getElementById("accountType");
+    dom.accountLinkedCustomerId = document.getElementById("accountLinkedCustomerId");
+    dom.accountPortalEnabled = document.getElementById("accountPortalEnabled");
     dom.accountPassword = document.getElementById("accountPassword");
     dom.accountStatus = document.getElementById("accountStatus");
     dom.accountPermCreateCustomer = document.getElementById("accountPermCreateCustomer");
@@ -344,14 +514,42 @@
       }
     });
 
+    dom.navGroupToggles.forEach((button) => {
+      button.addEventListener("click", () => toggleNavGroup(String(button.dataset.navGroupToggle || "")));
+    });
     dom.navButtons.forEach((button) => {
-      button.addEventListener("click", () => switchPage(String(button.dataset.pageTarget || "quoteQueryPage")));
+      button.addEventListener("click", () => {
+        switchPage(String(button.dataset.pageTarget || "quoteQueryPage"), {
+          navKey: getNavButtonKey(button),
+          dashboardFocus: button.dataset.dashboardFocus || "",
+          customerFocus: button.dataset.customerFocus || "",
+          inventoryFocus: button.dataset.inventoryFocus || "",
+        });
+      });
+    });
+    dom.customerNavButtons.forEach((button) => {
+      button.addEventListener("click", () => switchCustomerPage(String(button.dataset.customerPageTarget || CUSTOMER_PORTAL_DEFAULT_PAGE)));
     });
 
     dom.loginBtn?.addEventListener("click", onLogin);
     dom.logoutBtn?.addEventListener("click", logout);
+    dom.customerLogoutBtn?.addEventListener("click", logout);
     dom.submitAccountRequestBtn?.addEventListener("click", onSubmitAccountRequest);
     dom.refreshAllBtn?.addEventListener("click", renderAll);
+    dom.dashboardQuickActions?.addEventListener("click", onDashboardNavigate);
+    dom.dashboardTradePipeline?.addEventListener("click", onDashboardNavigate);
+    dom.dashboardTodoList?.addEventListener("click", onDashboardNavigate);
+    dom.dashboardRiskList?.addEventListener("click", onDashboardNavigate);
+    dom.ordersTableBody?.addEventListener("click", onOrdersTableAction);
+    dom.queryInvoicesBtn?.addEventListener("click", onQueryInvoices);
+    dom.resetInvoiceFiltersBtn?.addEventListener("click", onResetInvoiceFilters);
+    dom.invoiceFilterForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      onQueryInvoices();
+    });
+    dom.invoicesTableBody?.addEventListener("click", onInvoicesTableAction);
+    dom.invoiceReadyOrdersTableBody?.addEventListener("click", onInvoiceReadyOrdersAction);
+    dom.shipmentsTableBody?.addEventListener("click", onShipmentsTableAction);
 
     dom.quoteQueryForm?.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -433,6 +631,7 @@
     dom.clearApprovalsDirtyBtn?.addEventListener("click", clearApprovalDirtyData);
     dom.saveAccountBtn?.addEventListener("click", onSaveAccount);
     dom.accountRole?.addEventListener("change", onAccountRoleChange);
+    dom.accountType?.addEventListener("change", syncAccountPortalFields);
     dom.resetAccountBtn?.addEventListener("click", () => {
       resetAccountForm();
       setAlert(dom.accountFormAlert, "", "success");
@@ -448,6 +647,8 @@
     dom.clearLogsBtn?.addEventListener("click", clearAllLogs);
     dom.toggleLogsPageBtn?.addEventListener("click", onToggleLogsPage);
     dom.logsTableBody?.addEventListener("click", onLogsTableAction);
+    dom.customerPortalShell?.addEventListener("click", onCustomerPortalAction);
+    dom.customerPortalShell?.addEventListener("change", onCustomerPortalChange);
   }
 
   function loadData() {
@@ -476,6 +677,9 @@
       user_name: PRIMARY_ADMIN_USER_NAME,
       display_name: PRIMARY_ADMIN_DISPLAY_NAME,
       role: "SYSTEM_ADMIN",
+      account_type: "INTERNAL",
+      linked_customer_id: "",
+      portal_enabled: false,
       permissions: buildDefaultPermissionsForRole("SYSTEM_ADMIN"),
       team: "系统管理",
       position: "",
@@ -486,6 +690,30 @@
       approved_by_name: "系统初始化",
       last_login_at: "",
       remark: "系统预置超级管理员账号",
+      created_at: now,
+      updated_at: now,
+    };
+  }
+
+  function buildDemoCustomerPortalUser(now = nowIso()) {
+    return {
+      id: "u_customer_admin_01",
+      user_name: "partner.admin",
+      display_name: "Partner Admin",
+      role: "CUSTOMER_ADMIN",
+      account_type: "CUSTOMER",
+      linked_customer_id: "cust_001",
+      portal_enabled: true,
+      permissions: buildDefaultPermissionsForRole("CUSTOMER_ADMIN"),
+      team: "德国核心连锁A",
+      position: "",
+      status: "ACTIVE",
+      password: "partner123",
+      account_origin: "SYSTEM_SEED",
+      approved_by: "system",
+      approved_by_name: "系统初始化",
+      last_login_at: "",
+      remark: "客户门户演示账号",
       created_at: now,
       updated_at: now,
     };
@@ -508,7 +736,7 @@
   function buildDefaultData() {
     const now = nowIso();
     return {
-      users: [buildPrimaryAdministrator(now)],
+      users: [buildPrimaryAdministrator(now), buildDemoCustomerPortalUser(now)],
       customers: [
         {
           id: "cust_001",
@@ -522,6 +750,23 @@
           phone: "",
           email: "",
           address: "",
+          vat_id: "DE123456789",
+          company_no: "DE-HRB-10001",
+          country: "Germany",
+          billing_address: "Berlin Partner Billing Address",
+          shipping_address: "Berlin Partner Warehouse",
+          payment_terms: "NET 30",
+          credit_limit: 50000,
+          credit_used: 0,
+          portal_enabled: true,
+          sales_owner_id: PRIMARY_ADMIN_ID,
+          default_currency: CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+          invoice_email: "ap@partner-a.example",
+          delivery_contact_name: "Partner A Logistics",
+          delivery_contact_phone: "+49 000 000000",
+          delivery_address: "Berlin Partner Warehouse",
+          customer_status: "ACTIVE",
+          reverse_charge_eligible: false,
           default_db_rate: 0.0334,
           default_customer_margin: 0.124,
           default_service_fee: 0.0012,
@@ -548,13 +793,30 @@
           phone: "",
           email: "",
           address: "",
+          vat_id: "EU987654321",
+          company_no: "EU-COMP-009",
+          country: "Germany",
+          billing_address: "EU E-commerce Billing Address",
+          shipping_address: "EU E-commerce Fulfillment Center",
+          payment_terms: "PREPAID",
+          credit_limit: 30000,
+          credit_used: 0,
+          portal_enabled: true,
+          sales_owner_id: PRIMARY_ADMIN_ID,
+          default_currency: CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+          invoice_email: "finance@ecom-b.example",
+          delivery_contact_name: "Ecom B Logistics",
+          delivery_contact_phone: "+43 000 000000",
+          delivery_address: "EU E-commerce Fulfillment Center",
+          customer_status: "ACTIVE",
+          reverse_charge_eligible: true,
           default_db_rate: 0.03,
           default_customer_margin: 0.118,
           default_service_fee: 0.001,
           default_mkt_funding: 0,
           default_stk_buffer: 4,
           default_front_margin: 0.006,
-          default_vat: 0.2,
+          default_vat: 0,
           default_ura: 5,
           default_approver_id: PRIMARY_ADMIN_ID,
           status: "ACTIVE",
@@ -582,6 +844,18 @@
           inner_carton_dimensions: "",
           units_per_carton: "",
           carton_weight_kg: "",
+          category: "PHONE",
+          brand: "OPPO",
+          image_url: "",
+          sales_status: "ACTIVE",
+          is_sellable: true,
+          default_warehouse: "Vienna DC",
+          min_order_quantity: 5,
+          carton_qty: 10,
+          available_for_portal: true,
+          short_description: "Flagship 5G smartphone",
+          marketing_description: "Find series flagship device for premium partner channels.",
+          product_image_url: "",
           default_msrp: 899,
           default_cost: 622,
           default_formula_id: "formula_001",
@@ -608,6 +882,18 @@
           inner_carton_dimensions: "",
           units_per_carton: "",
           carton_weight_kg: "",
+          category: "PHONE",
+          brand: "OPPO",
+          image_url: "",
+          sales_status: "ACTIVE",
+          is_sellable: true,
+          default_warehouse: "Vienna DC",
+          min_order_quantity: 10,
+          carton_qty: 20,
+          available_for_portal: true,
+          short_description: "Mainstream Reno series smartphone",
+          marketing_description: "Reno series device for high-volume partner sell-through.",
+          product_image_url: "",
           default_msrp: 529,
           default_cost: 364,
           default_formula_id: "formula_001",
@@ -650,6 +936,45 @@
         },
       ],
       quotes: [],
+      order_quotations: [],
+      customer_carts: [],
+      orders: [],
+      order_items: [],
+      invoice_settings: { ...DEFAULT_INVOICE_SETTINGS },
+      inventory: [
+        {
+          id: "inv_001",
+          inventory_id: "inv_001",
+          sku: "FINDX8-512-BLK",
+          product_id: "prod_001",
+          warehouse: "Vienna DC",
+          total_stock: 180,
+          available_stock: 160,
+          reserved_stock: 0,
+          locked_stock: 0,
+          in_transit_stock: 40,
+          safety_stock: 20,
+          updated_at: now,
+        },
+        {
+          id: "inv_002",
+          inventory_id: "inv_002",
+          sku: "RENO14-256-SLV",
+          product_id: "prod_002",
+          warehouse: "Vienna DC",
+          total_stock: 320,
+          available_stock: 290,
+          reserved_stock: 0,
+          locked_stock: 0,
+          in_transit_stock: 80,
+          safety_stock: 30,
+          updated_at: now,
+        },
+      ],
+      inventory_locks: [],
+      invoices: [],
+      invoice_items: [],
+      shipments: [],
       approvals: [],
       customer_requests: [],
       account_requests: [],
@@ -664,6 +989,9 @@
         return {
           ...(fallback || {}),
           ...user,
+          account_type: user.account_type || fallback?.account_type || (CUSTOMER_ROLES.has(String(user.role || fallback?.role || "")) ? "CUSTOMER" : "INTERNAL"),
+          linked_customer_id: user.linked_customer_id || fallback?.linked_customer_id || "",
+          portal_enabled: Boolean(user.portal_enabled ?? fallback?.portal_enabled ?? CUSTOMER_ROLES.has(String(user.role || fallback?.role || ""))),
           permissions: normalizeUserPermissions(user.role || fallback?.role || "", user.permissions || fallback?.permissions),
           status: user.status || fallback?.status || "ACTIVE",
           password: user.password || fallback?.password || TEMP_ACCOUNT_PASSWORD,
@@ -708,7 +1036,14 @@
         normalizeAccountName(item.user_name) !== PRIMARY_ADMIN_USER_NAME
     );
 
-    return [primaryAdmin].concat(remainingUsers);
+    const demoCustomerUser =
+      normalizedUsers.find((item) => normalizeAccountName(item.user_name) === "partner.admin") ||
+      buildDemoCustomerPortalUser();
+    const nextUsers = [primaryAdmin].concat(remainingUsers.filter((item) => normalizeAccountName(item.user_name) !== "partner.admin"));
+    if (!nextUsers.some((item) => normalizeAccountName(item.user_name) === "partner.admin")) {
+      nextUsers.push(demoCustomerUser);
+    }
+    return nextUsers;
   }
 
   function migratePrimaryAdministratorReferences(data) {
@@ -791,6 +1126,15 @@
     };
   }
 
+  function normalizeInvoiceSettings(settings) {
+    return {
+      ...DEFAULT_INVOICE_SETTINGS,
+      ...(settings && typeof settings === "object" ? settings : {}),
+      default_payment_days: Math.max(1, Math.floor(toNumber(settings?.default_payment_days, DEFAULT_INVOICE_SETTINGS.default_payment_days))),
+      customer_viewer_can_download_invoice: Boolean(settings?.customer_viewer_can_download_invoice ?? DEFAULT_INVOICE_SETTINGS.customer_viewer_can_download_invoice),
+    };
+  }
+
   function normalizeData(raw) {
     const defaults = buildDefaultData();
     const normalized = {
@@ -805,6 +1149,16 @@
           })))
         : defaults.formulas,
       quotes: Array.isArray(raw?.quotes) ? raw.quotes.map((item) => normalizeQuoteRecord(item)) : [],
+      order_quotations: Array.isArray(raw?.order_quotations) ? raw.order_quotations : [],
+      customer_carts: Array.isArray(raw?.customer_carts) ? raw.customer_carts : [],
+      orders: Array.isArray(raw?.orders) ? raw.orders : [],
+      order_items: Array.isArray(raw?.order_items) ? raw.order_items : [],
+      invoice_settings: normalizeInvoiceSettings(raw?.invoice_settings || defaults.invoice_settings),
+      inventory: Array.isArray(raw?.inventory) && raw.inventory.length > 0 ? raw.inventory.map((item) => normalizeInventoryRecord(item)) : defaults.inventory,
+      inventory_locks: Array.isArray(raw?.inventory_locks) ? raw.inventory_locks : [],
+      invoices: Array.isArray(raw?.invoices) ? raw.invoices : [],
+      invoice_items: Array.isArray(raw?.invoice_items) ? raw.invoice_items : [],
+      shipments: Array.isArray(raw?.shipments) ? raw.shipments : [],
       approvals: Array.isArray(raw?.approvals) ? raw.approvals : [],
       customer_requests: Array.isArray(raw?.customer_requests) ? raw.customer_requests : [],
       account_requests: Array.isArray(raw?.account_requests)
@@ -829,6 +1183,23 @@
       phone: String(customer?.phone || "").trim(),
       email: String(customer?.email || "").trim(),
       address: String(customer?.address || "").trim(),
+      vat_id: String(customer?.vat_id || "").trim(),
+      company_no: String(customer?.company_no || customer?.customer_code || "").trim(),
+      country: String(customer?.country || customer?.region || "").trim(),
+      billing_address: String(customer?.billing_address || customer?.address || "").trim(),
+      shipping_address: String(customer?.shipping_address || customer?.address || "").trim(),
+      payment_terms: String(customer?.payment_terms || "PREPAID").trim(),
+      credit_limit: roundMoney(customer?.credit_limit ?? 0),
+      credit_used: roundMoney(customer?.credit_used ?? 0),
+      portal_enabled: Boolean(customer?.portal_enabled ?? true),
+      sales_owner_id: String(customer?.sales_owner_id || "").trim(),
+      default_currency: String(customer?.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY).trim(),
+      invoice_email: String(customer?.invoice_email || customer?.email || "").trim(),
+      delivery_contact_name: String(customer?.delivery_contact_name || customer?.contact_name || "").trim(),
+      delivery_contact_phone: String(customer?.delivery_contact_phone || customer?.phone || "").trim(),
+      delivery_address: String(customer?.delivery_address || customer?.shipping_address || customer?.address || "").trim(),
+      customer_status: String(customer?.customer_status || customer?.status || "ACTIVE").trim(),
+      reverse_charge_eligible: Boolean(customer?.reverse_charge_eligible),
       default_db_rate: toRateInput(customer?.default_db_rate, 0.0334),
       default_customer_margin: toRateInput(
         customer?.default_customer_margin,
@@ -854,6 +1225,20 @@
     return Number.isFinite(numeric) ? roundMoney(numeric) : "";
   }
 
+  function normalizeProductCategory(value) {
+    const text = String(value || "").trim().toUpperCase();
+    if (/WATCH|SMARTWATCH|手表/.test(text)) {
+      return "SMARTWATCH";
+    }
+    if (/TABLET|PAD|平板/.test(text)) {
+      return "TABLET";
+    }
+    if (/PHONE|SMARTPHONE|MOBILE|FIND|RENO|手机/.test(text)) {
+      return "PHONE";
+    }
+    return text || "PHONE";
+  }
+
   function normalizeProductRecord(product) {
     return {
       ...product,
@@ -868,6 +1253,18 @@
       inner_carton_dimensions: String(product?.inner_carton_dimensions || "").trim(),
       units_per_carton: normalizeOptionalNumber(product?.units_per_carton),
       carton_weight_kg: normalizeOptionalNumber(product?.carton_weight_kg),
+      category: normalizeProductCategory(product?.category || product?.product_series || ""),
+      brand: String(product?.brand || "OPPO").trim(),
+      image_url: String(product?.image_url || "").trim(),
+      sales_status: String(product?.sales_status || product?.status || "ACTIVE").trim(),
+      is_sellable: Boolean(product?.is_sellable ?? true),
+      default_warehouse: String(product?.default_warehouse || "Vienna DC").trim(),
+      min_order_quantity: Math.max(1, Math.floor(toNumber(product?.min_order_quantity, 1))),
+      carton_qty: Math.max(1, Math.floor(toNumber(product?.carton_qty || product?.units_per_carton, 1))),
+      available_for_portal: Boolean(product?.available_for_portal ?? true),
+      short_description: String(product?.short_description || "").trim(),
+      marketing_description: String(product?.marketing_description || "").trim(),
+      product_image_url: String(product?.product_image_url || product?.image_url || "").trim(),
       default_msrp: roundMoney(product?.default_msrp || 0),
       default_cost: roundMoney(product?.default_cost || 0),
       default_formula_id: product?.default_formula_id || "",
@@ -877,6 +1274,29 @@
 
   function filterInactiveMasterRecords(items) {
     return (items || []).filter((item) => String(item?.status || "ACTIVE").toUpperCase() !== "INACTIVE");
+  }
+
+  function normalizeInventoryRecord(record) {
+    const totalStock = Math.max(0, Math.floor(toNumber(record?.total_stock, 0)));
+    const reservedStock = Math.max(0, Math.floor(toNumber(record?.reserved_stock, 0)));
+    const lockedStock = Math.max(0, Math.floor(toNumber(record?.locked_stock, 0)));
+    const safetyStock = Math.max(0, Math.floor(toNumber(record?.safety_stock, 0)));
+    const id = record?.id || record?.inventory_id || buildId("inventory");
+    return {
+      ...record,
+      id,
+      inventory_id: record?.inventory_id || id,
+      sku: String(record?.sku || "").trim().toUpperCase(),
+      product_id: String(record?.product_id || "").trim(),
+      warehouse: String(record?.warehouse || "Vienna DC").trim(),
+      total_stock: totalStock,
+      reserved_stock: reservedStock,
+      locked_stock: lockedStock,
+      in_transit_stock: Math.max(0, Math.floor(toNumber(record?.in_transit_stock, 0))),
+      safety_stock: safetyStock,
+      available_stock: Math.max(0, totalStock - reservedStock - lockedStock - safetyStock),
+      updated_at: record?.updated_at || nowIso(),
+    };
   }
 
   function normalizeQuoteRecord(quote) {
@@ -1105,10 +1525,42 @@
     if (cleanupInitialApprovalAndLogData()) {
       changed = true;
     }
+    if (ensureInventoryForProducts()) {
+      changed = true;
+    }
 
     if (changed) {
       persistData();
     }
+  }
+
+  function ensureInventoryForProducts() {
+    let changed = false;
+    getActiveProducts().forEach((product) => {
+      if (getInventoryByProductId(product.id)) {
+        return;
+      }
+      const totalStock = product.id === "prod_001" ? 180 : product.id === "prod_002" ? 320 : 100;
+      const safetyStock = Math.max(5, Math.floor(totalStock * 0.08));
+      const inventory = {
+        id: buildId("inventory"),
+        inventory_id: "",
+        sku: product.sku,
+        product_id: product.id,
+        warehouse: product.default_warehouse || "Vienna DC",
+        total_stock: totalStock,
+        available_stock: totalStock - safetyStock,
+        reserved_stock: 0,
+        locked_stock: 0,
+        in_transit_stock: 0,
+        safety_stock: safetyStock,
+        updated_at: nowIso(),
+      };
+      inventory.inventory_id = inventory.id;
+      state.data.inventory.unshift(inventory);
+      changed = true;
+    });
+    return changed;
   }
 
   function ensureInitialSelections() {
@@ -1129,8 +1581,15 @@
     if (!isAuthenticated()) {
       return;
     }
+    if (isCustomerOperator()) {
+      renderCustomerPortal();
+      syncLanguage();
+      return;
+    }
     renderNavigation();
     renderMasterOptions();
+    renderAdminDashboard();
+    focusDashboardSection(false);
     renderQuotesPage();
     renderQuotePreview(calculateCurrentQuotePreview());
     renderImportPreview();
@@ -1141,6 +1600,10 @@
     renderCustomerPagePresentation();
     renderProductPagePresentation();
     renderApprovalsTable();
+    renderOrdersPage();
+    renderInventoryPage();
+    renderInvoicesPage();
+    renderShipmentsPage();
     renderAccountsPage();
     renderLogsPage();
     syncDirtyDataControlVisibility();
@@ -1172,40 +1635,166 @@
     });
   }
 
+  function getNavButtonKey(button) {
+    return String(button?.dataset?.navKey || button?.dataset?.pageTarget || "");
+  }
+
+  function getNavButtonAliases(button) {
+    return String(button?.dataset?.pageAliases || "")
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function navButtonMatchesPage(button, pageId) {
+    const targetId = String(button?.dataset?.pageTarget || "");
+    return targetId === pageId || getNavButtonAliases(button).includes(pageId);
+  }
+
+  function applyNavButtonContext(button) {
+    if (!button) {
+      return;
+    }
+    state.ui.currentNavKey = getNavButtonKey(button);
+    if (button.dataset.dashboardFocus) {
+      state.ui.dashboardFocus = button.dataset.dashboardFocus;
+    }
+    if (button.dataset.customerFocus) {
+      state.ui.customerFocus = button.dataset.customerFocus;
+    }
+    if (button.dataset.inventoryFocus) {
+      state.ui.inventoryFocus = button.dataset.inventoryFocus;
+    }
+  }
+
+  function getVisibleNavButtonsForPage(pageId) {
+    const allowedPages = getAccessiblePages();
+    return dom.navButtons.filter((button) => {
+      const targetId = String(button.dataset.pageTarget || "");
+      const allowed = allowedPages.includes(targetId);
+      return allowed && navButtonMatchesPage(button, pageId);
+    });
+  }
+
+  function getNavGroupIdForButton(button) {
+    const group = button?.closest?.(".nav-group[data-nav-group]");
+    return group instanceof HTMLElement ? String(group.dataset.navGroup || "") : "";
+  }
+
+  function getCurrentPageNavGroupId(pageId = state.ui.currentPage) {
+    const byActiveKey = dom.navButtons.find((button) => getNavButtonKey(button) === state.ui.currentNavKey && navButtonMatchesPage(button, pageId));
+    const byPage = byActiveKey || dom.navButtons.find((button) => navButtonMatchesPage(button, pageId));
+    return getNavGroupIdForButton(byPage) || "workbench";
+  }
+
+  function setDefaultNavGroupsForPage(pageId = state.ui.currentPage) {
+    const currentGroup = getCurrentPageNavGroupId(pageId);
+    Object.keys(state.ui.navGroups).forEach((groupId) => {
+      state.ui.navGroups[groupId] = groupId === "workbench" || groupId === currentGroup;
+    });
+  }
+
+  function toggleNavGroup(groupId) {
+    if (!groupId) {
+      return;
+    }
+    state.ui.navGroups[groupId] = !state.ui.navGroups[groupId];
+    renderNavigation();
+  }
+
   function renderNavigation() {
     const allowedPages = getAccessiblePages();
     if (!allowedPages.includes(state.ui.currentPage)) {
       state.ui.currentPage = getPreferredHomePage(allowedPages);
     }
+    const visibleButtonsForCurrentPage = getVisibleNavButtonsForPage(state.ui.currentPage);
+    const hasActiveNavKey = visibleButtonsForCurrentPage.some((button) => getNavButtonKey(button) === state.ui.currentNavKey);
+    if (!hasActiveNavKey && visibleButtonsForCurrentPage[0]) {
+      applyNavButtonContext(visibleButtonsForCurrentPage[0]);
+    }
     dom.navButtons.forEach((button) => {
       const targetId = String(button.dataset.pageTarget || "");
       const allowed = allowedPages.includes(targetId);
       button.classList.toggle("role-hidden", !allowed);
-      const active = allowed && targetId === state.ui.currentPage;
+      const active = allowed && navButtonMatchesPage(button, state.ui.currentPage) && getNavButtonKey(button) === state.ui.currentNavKey;
       button.classList.toggle("active", active);
+    });
+    dom.navGroups.forEach((group) => {
+      const groupId = String(group.dataset.navGroup || "");
+      const visibleChildren = Array.from(group.querySelectorAll(".nav-item[data-page-target]")).some((button) => !button.classList.contains("role-hidden"));
+      const expanded = Boolean(state.ui.navGroups[groupId]);
+      group.classList.toggle("role-hidden", !visibleChildren);
+      group.classList.toggle("is-collapsed", !expanded);
+      const toggle = group.querySelector("[data-nav-group-toggle]");
+      toggle?.setAttribute("aria-expanded", String(expanded));
+      const chevron = group.querySelector(".nav-chevron");
+      if (chevron) {
+        chevron.textContent = expanded ? "⌄" : "›";
+      }
     });
     dom.pageSections.forEach((section) => {
       const allowed = allowedPages.includes(section.id);
       section.classList.toggle("role-hidden", !allowed);
       section.classList.toggle("active", allowed && section.id === state.ui.currentPage);
     });
-    const activeButton = dom.navButtons.find((button) => button.dataset.pageTarget === state.ui.currentPage);
+    const activeButton =
+      dom.navButtons.find((button) => navButtonMatchesPage(button, state.ui.currentPage) && getNavButtonKey(button) === state.ui.currentNavKey) ||
+      dom.navButtons.find((button) => navButtonMatchesPage(button, state.ui.currentPage));
     if (dom.pageTitle) {
-      dom.pageTitle.textContent = activeButton?.textContent?.trim() || tr("客户报价管理系统");
+      dom.pageTitle.textContent = getPageTitleForCurrentPage(activeButton);
     }
     updatePermissionIsolationHint();
     syncLanguage();
   }
 
-  function switchPage(pageId) {
+  function getPageTitleForCurrentPage(activeButton) {
+    const buttonKey = activeButton?.dataset?.i18n || "";
+    if (state.ui.currentPage === "quoteCreatePage") return tr("报价生成");
+    if (state.ui.currentPage === "quoteQueryPage") return buttonKey ? tt(buttonKey) : tr(activeButton?.textContent?.trim() || "报价管理");
+    if (state.ui.currentPage === "dashboardPage") {
+      const focusMap = {
+        overview: tt("menu.workspace.overview"),
+        todo: tt("menu.workspace.tasks"),
+        risk: tt("menu.workspace.risks"),
+      };
+      return focusMap[state.ui.dashboardFocus] || tt("menu.workspace.title");
+    }
+    return buttonKey ? tt(buttonKey) : tr(activeButton?.textContent?.trim() || "客户报价管理系统");
+  }
+
+  function switchPage(pageId, options = {}) {
     const allowedPages = getAccessiblePages();
+    const targetButton = dom.navButtons.find((button) => getNavButtonKey(button) === options.navKey) || dom.navButtons.find((button) => navButtonMatchesPage(button, pageId));
+    if (targetButton) {
+      applyNavButtonContext(targetButton);
+    }
+    if (options.dashboardFocus) state.ui.dashboardFocus = options.dashboardFocus;
+    if (options.customerFocus) state.ui.customerFocus = options.customerFocus;
+    if (options.inventoryFocus) state.ui.inventoryFocus = options.inventoryFocus;
     state.ui.currentPage = canAccessPage(pageId) ? pageId : getPreferredHomePage(allowedPages);
+    setDefaultNavGroupsForPage(state.ui.currentPage);
     renderNavigation();
     if (pageId === "quoteQueryPage") {
       renderQuotesPage();
     }
     if (pageId === "approvalPage") {
       renderApprovalsTable();
+    }
+    if (pageId === "dashboardPage") {
+      renderAdminDashboard();
+      focusDashboardSection();
+    }
+    if (pageId === "orderPage") {
+      renderOrdersPage();
+    }
+    if (pageId === "inventoryPage") {
+      renderInventoryPage();
+    }
+    if (pageId === "invoicePage") {
+      renderInvoicesPage();
+    }
+    if (pageId === "shipmentPage") {
+      renderShipmentsPage();
     }
     if (pageId === "customerPage") {
       renderCustomersTable();
@@ -1225,6 +1814,1668 @@
     applyPresentationIsolation();
   }
 
+  function switchCustomerPage(pageId) {
+    state.ui.currentCustomerPage = CUSTOMER_PAGE_IDS.includes(pageId) ? pageId : CUSTOMER_PORTAL_DEFAULT_PAGE;
+    renderCustomerPortal();
+  }
+
+  function renderCustomerPortal() {
+    renderCustomerPortalNavigation();
+    renderCustomerDashboardPage();
+    renderCustomerProductsPage();
+    renderCustomerCartPage();
+    renderCustomerOrdersPage();
+    renderCustomerInvoicesPage();
+    renderCustomerShipmentsPage();
+    renderCustomerAccountPage();
+  }
+
+  function renderCustomerPortalNavigation() {
+    if (!CUSTOMER_PAGE_IDS.includes(state.ui.currentCustomerPage)) {
+      state.ui.currentCustomerPage = CUSTOMER_PORTAL_DEFAULT_PAGE;
+    }
+    dom.customerNavButtons.forEach((button) => {
+      const targetId = String(button.dataset.customerPageTarget || "");
+      button.classList.toggle("active", targetId === state.ui.currentCustomerPage);
+    });
+    dom.customerPageSections.forEach((section) => {
+      section.classList.toggle("active", section.id === state.ui.currentCustomerPage);
+    });
+  }
+
+  function getCurrentCustomer() {
+    const operator = getCurrentOperator();
+    return operator?.linked_customer_id ? getCustomerById(operator.linked_customer_id) : null;
+  }
+
+  function canCustomerSubmitOrders(user = getCurrentOperator()) {
+    const role = String(user?.role || "").toUpperCase();
+    return role === "CUSTOMER_ADMIN" || role === "CUSTOMER_BUYER";
+  }
+
+  function renderCustomerDashboardPage() {
+    const section = document.getElementById("customerDashboardPage");
+    if (!section) {
+      return;
+    }
+    const customer = getCurrentCustomer();
+    const orders = getCustomerOrders(customer?.id);
+    const cartItems = getCurrentCustomerCartItems();
+    const pendingOrders = orders.filter((order) => ["SUBMITTED", "PENDING_APPROVAL"].includes(String(order.order_status || "").toUpperCase()));
+    const approvedOrders = orders.filter((order) => String(order.order_status || "").toUpperCase() === "APPROVED");
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(renderBusinessName(customer?.customer_name) || tt("customerPortal.dashboard.partnerDashboard"))}</h3>
+          <span class="hint">${escapeHtml(customer?.payment_terms || tt("customerPortal.dashboard.paymentTermsPending"))}</span>
+        </div>
+        <div class="summary-grid">
+          ${renderSummaryCard(tt("customerPortal.dashboard.cartItems"), String(cartItems.length))}
+          ${renderSummaryCard(tt("customerPortal.dashboard.pendingOrders"), String(pendingOrders.length))}
+          ${renderSummaryCard(tt("customerPortal.dashboard.approvedOrders"), String(approvedOrders.length))}
+          ${renderSummaryCard(tt("customerPortal.dashboard.creditAvailable"), formatMoney(Math.max(0, toNumber(customer?.credit_limit, 0) - toNumber(customer?.credit_used, 0))))}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.dashboard.recentOrders"))}</h3>
+          <span class="hint">${escapeHtml(tt("customerPortal.dashboard.scopedOrdersHint"))}</span>
+        </div>
+        ${renderCustomerOrderMiniTable(orders.slice(0, 5))}
+      </div>
+    `;
+  }
+
+  function renderSummaryCard(label, value, hint = "") {
+    return `
+      <div class="summary-card">
+        <span class="hint">${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+        ${hint ? `<span class="hint">${escapeHtml(hint)}</span>` : ""}
+      </div>
+    `;
+  }
+
+  function renderCustomerOrderMiniTable(orders) {
+    if (!orders.length) {
+      return `<div class="detail-placeholder">${escapeHtml(tt("empty.noOrders"))}</div>`;
+    }
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>${escapeHtml(tt("order.table.orderNo"))}</th>
+              <th>${escapeHtml(tt("order.table.status"))}</th>
+              <th>${escapeHtml(tt("order.table.total"))}</th>
+              <th>${escapeHtml(tt("order.table.createdAt"))}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orders
+              .map(
+                (order) => `
+                  <tr>
+                    <td>${escapeHtml(order.order_no)}</td>
+                    <td>${renderStatusBadge(order.order_status)}</td>
+                    <td>${escapeHtml(formatCurrencyAmount(order.total_amount, order.currency))}</td>
+                    <td>${escapeHtml(formatDateTime(order.created_at))}</td>
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderCustomerProductsPage() {
+    const section = document.getElementById("customerProductsPage");
+    if (!section) {
+      return;
+    }
+    const customer = getCurrentCustomer();
+    const products = getPortalProducts();
+    if (!customer) {
+      section.innerHTML = `<div class="panel"><div class="detail-placeholder">${escapeHtml(tt("customerPortal.products.notLinked"))}</div></div>`;
+      return;
+    }
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.products.title"))}</h3>
+          <span class="hint">${escapeHtml(tt("customerPortal.products.hint"))}</span>
+        </div>
+        <div id="customerProductAlert"></div>
+        <div class="table-wrap">
+          <table class="customer-products-table">
+            <thead>
+              <tr>
+                <th>${escapeHtml(tt("customerPortal.products.productImage"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.productName"))}</th>
+                <th>SKU</th>
+                <th>${escapeHtml(tt("customerPortal.products.series"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.variant"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.yourPrice"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.moq"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.availableStock"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.quantity"))}</th>
+                <th>${escapeHtml(tt("action.addToCart"))}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                products.length === 0
+                  ? `<tr><td colspan="10">${escapeHtml(tt("customerPortal.products.empty"))}</td></tr>`
+                  : products.map((product) => renderCustomerProductRow(customer, product)).join("")
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCustomerProductRow(customer, product) {
+    const moq = getProductMoq(product);
+    const quantity = Math.max(moq, Math.floor(toNumber(state.ui.customerProductQuantities[product.id], moq)));
+    const price = previewCustomerPrice(customer.id, product.id, moq);
+    const inventory = getSellableInventory(product.id);
+    const stockLabel = renderCustomerStockLabel(customer, inventory.available_stock);
+    const disabled = !price.can_order || !canCustomerSubmitOrders() || inventory.available_stock < moq;
+    return `
+      <tr>
+        <td>${renderProductImage(product)}</td>
+        <td>
+          <strong>${escapeHtml(product.product_name)}</strong>
+          <span class="hint">${escapeHtml(product.short_description || "")}</span>
+        </td>
+        <td>${escapeHtml(product.sku)}</td>
+        <td>${escapeHtml(product.product_series || "-")}</td>
+        <td>${escapeHtml(product.variant || "-")}</td>
+        <td>${escapeHtml(formatCurrencyAmount(price.unit_price, price.currency))}</td>
+        <td>${escapeHtml(String(moq))}</td>
+        <td>${escapeHtml(stockLabel)}</td>
+        <td>
+          <input class="compact-input" type="number" min="${escapeHtml(String(moq))}" step="1" value="${escapeHtml(String(quantity))}" data-customer-qty-product-id="${escapeHtml(product.id)}" />
+        </td>
+        <td>
+          <button class="btn btn-primary" type="button" data-customer-action="add-to-cart" data-product-id="${escapeHtml(product.id)}" ${disabled ? "disabled" : ""}>${escapeHtml(tt("action.add"))}</button>
+        </td>
+      </tr>
+    `;
+  }
+
+  function renderProductImage(product) {
+    const url = String(product.product_image_url || product.image_url || "").trim();
+    if (url) {
+      return `<img class="product-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(product.product_name)}" />`;
+    }
+    return `<div class="product-thumb product-thumb-placeholder">${escapeHtml(String(product.product_name || "OPPO").slice(0, 2).toUpperCase())}</div>`;
+  }
+
+  function renderCustomerCartPage() {
+    const section = document.getElementById("customerCartPage");
+    if (!section) {
+      return;
+    }
+    const cartItems = getCurrentCustomerCartItems();
+    const totals = calculateCartTotals(cartItems);
+    const submitDisabled = cartItems.length === 0 || !canCustomerSubmitOrders();
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.cart.title"))}</h3>
+          <span class="hint">${escapeHtml(tt("customerPortal.cart.hint"))}</span>
+        </div>
+        <div id="customerCartAlert"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>${escapeHtml(tt("customerPortal.products.productName"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.quantity"))}</th>
+                <th>${escapeHtml(tt("customerPortal.cart.unitPrice"))}</th>
+                <th>VAT</th>
+                <th>${escapeHtml(tt("customerPortal.cart.subtotal"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.availableStock"))}</th>
+                <th>${escapeHtml(tt("customerPortal.cart.priceValidUntil"))}</th>
+                <th>${escapeHtml(tt("order.table.actions"))}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                cartItems.length === 0
+                  ? `<tr><td colspan="9">${escapeHtml(tt("customerPortal.cart.empty"))}</td></tr>`
+                  : cartItems.map((item) => renderCustomerCartRow(item)).join("")
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="cart-total-bar">
+          <strong>${escapeHtml(tt("customerPortal.cart.total", { amount: formatCurrencyAmount(totals.total_amount, totals.currency) }))}</strong>
+          <span class="hint">${escapeHtml(tt("customerPortal.cart.vatIncluded", { amount: formatCurrencyAmount(totals.vat_amount, totals.currency) }))}</span>
+          <button class="btn btn-primary" type="button" data-customer-action="submit-order" ${submitDisabled ? "disabled" : ""}>${escapeHtml(tt("action.submitOrder"))}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCustomerCartRow(item) {
+    return `
+      <tr>
+        <td>${escapeHtml(item.sku)}</td>
+        <td>${escapeHtml(item.product_name)}</td>
+        <td><input class="compact-input" type="number" min="${escapeHtml(String(item.min_order_quantity || 1))}" step="1" value="${escapeHtml(String(item.quantity))}" data-cart-qty-id="${escapeHtml(item.id)}" /></td>
+        <td>${escapeHtml(formatCurrencyAmount(item.unit_price, item.currency))}</td>
+        <td>${escapeHtml(formatPercent(item.vat_rate))}</td>
+        <td>${escapeHtml(formatCurrencyAmount(item.subtotal, item.currency))}</td>
+        <td>${escapeHtml(String(item.available_stock))}</td>
+        <td>${escapeHtml(formatDateValue(item.price_valid_until))}</td>
+        <td>
+          <div class="inline-actions inline-actions-compact">
+            <button class="btn" type="button" data-customer-action="update-cart" data-cart-item-id="${escapeHtml(item.id)}">${escapeHtml(tt("action.updateQuantity"))}</button>
+            <button class="btn btn-danger" type="button" data-customer-action="remove-cart" data-cart-item-id="${escapeHtml(item.id)}">${escapeHtml(tt("action.remove"))}</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function renderCustomerOrdersPage() {
+    const section = document.getElementById("customerOrdersPage");
+    if (!section) {
+      return;
+    }
+    const customer = getCurrentCustomer();
+    const orders = getCustomerOrders(customer?.id);
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.orders.title"))}</h3>
+          <span class="hint">${escapeHtml(tt("customerPortal.orders.scopeHint", { customer: renderBusinessName(customer?.customer_name) || tt("customerPortal.orders.yourCompany") }))}</span>
+        </div>
+        ${renderCustomerOrdersTable(orders)}
+      </div>
+    `;
+  }
+
+  function renderCustomerOrdersTable(orders) {
+    if (!orders.length) {
+      return `<div class="detail-placeholder">${escapeHtml(tt("empty.noOrders"))}</div>`;
+    }
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>${escapeHtml(tt("order.table.orderNo"))}</th>
+              <th>${escapeHtml(tt("order.table.items"))}</th>
+              <th>${escapeHtml(tt("order.table.total"))}</th>
+              <th>${escapeHtml(tt("order.table.orderStatus"))}</th>
+              <th>${escapeHtml(tt("order.table.approvalStatus"))}</th>
+              <th>${escapeHtml(tt("order.table.invoiceStatus"))}</th>
+              <th>${escapeHtml(tt("order.table.shipmentStatus"))}</th>
+              <th>${escapeHtml(tt("order.table.createdAt"))}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${orders
+              .map(
+                (order) => `
+                  <tr>
+                    <td>${escapeHtml(order.order_no)}</td>
+                    <td>${escapeHtml(renderOrderItemSummary(order.id))}</td>
+                    <td>${escapeHtml(formatCurrencyAmount(order.total_amount, order.currency))}</td>
+                    <td>${renderStatusBadge(order.order_status)}</td>
+                    <td>${renderStatusBadge(order.approval_status)}</td>
+                    <td>${renderStatusBadge(order.invoice_status || "NOT_GENERATED")}</td>
+                    <td>${renderStatusBadge(order.shipment_status || "PENDING")}</td>
+                    <td>${escapeHtml(formatDateTime(order.created_at))}</td>
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderCustomerInvoicesPage() {
+    const section = document.getElementById("customerInvoicesPage");
+    if (!section) {
+      return;
+    }
+    const customer = getCurrentCustomer();
+    const invoices = getCustomerVisibleInvoices(customer?.id);
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.invoices.title"))}</h3>
+          <span class="hint">${escapeHtml(tt("customerPortal.invoices.scopeHint", { customer: renderBusinessName(customer?.customer_name) || tt("customerPortal.orders.yourCompany") }))}</span>
+        </div>
+        <div class="toolbar customer-invoice-filters">
+          <input class="compact-search" placeholder="${escapeHtml(tt("customerPortal.invoices.filterPlaceholder"))}" value="${escapeHtml(state.ui.customerInvoiceFilters.keyword)}" data-customer-invoice-filter="keyword" />
+          <select class="compact-search" data-customer-invoice-filter="status">
+            <option value="">${escapeHtml(tt("customerPortal.invoices.allPaymentStatus"))}</option>
+            ${PAYMENT_STATUSES.map((status) => `<option value="${escapeHtml(status)}" ${state.ui.customerInvoiceFilters.status === status ? "selected" : ""}>${escapeHtml(renderPlainStatus(status))}</option>`).join("")}
+          </select>
+        </div>
+        ${renderCustomerInvoiceTable(invoices)}
+      </div>
+    `;
+  }
+
+  function getCustomerVisibleInvoices(customerId) {
+    const filters = state.ui.customerInvoiceFilters || {};
+    return state.data.invoices
+      .filter((invoice) => invoice.customer_id === customerId && invoice.invoice_status !== "CANCELLED")
+      .filter((invoice) => {
+        const keyword = String(filters.keyword || "").trim().toLowerCase();
+        if (keyword) {
+          const haystack = [invoice.invoice_no, invoice.order_no, invoice.order_reference].join(" ").toLowerCase();
+          if (!haystack.includes(keyword)) {
+            return false;
+          }
+        }
+        if (filters.status && invoice.payment_status !== filters.status) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => String(b.date_of_issue || b.created_at).localeCompare(String(a.date_of_issue || a.created_at), "zh-CN"));
+  }
+
+  function renderCustomerInvoiceTable(invoices) {
+    if (!invoices.length) {
+      return `<div class="detail-placeholder">${escapeHtml(tt("customerPortal.invoices.empty"))}</div>`;
+    }
+    const canDownload = canCustomerDownloadInvoice();
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>${escapeHtml(tt("invoice.table.invoiceNo"))}</th>
+              <th>${escapeHtml(tt("invoice.detail.orderReference"))}</th>
+              <th>${escapeHtml(tt("invoice.table.dateOfIssue"))}</th>
+              <th>${escapeHtml(tt("invoice.table.dueDate"))}</th>
+              <th>${escapeHtml(tt("invoice.table.totalGross"))}</th>
+              <th>${escapeHtml(tt("invoice.table.currency"))}</th>
+              <th>${escapeHtml(tt("invoice.table.paymentStatus"))}</th>
+              <th>${escapeHtml(tt("action.download"))}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${invoices
+              .map(
+                (invoice) => `
+                  <tr>
+                    <td>${escapeHtml(invoice.invoice_no)}</td>
+                    <td>${escapeHtml(invoice.order_reference || invoice.order_no || "-")}</td>
+                    <td>${escapeHtml(formatDateValue(invoice.date_of_issue))}</td>
+                    <td>${escapeHtml(formatDateValue(invoice.due_date))}</td>
+                    <td>${escapeHtml(formatMoney(invoice.total_gross))}</td>
+                    <td>${escapeHtml(invoice.currency || "-")}</td>
+                    <td>${renderStatusBadge(invoice.payment_status)}</td>
+                    <td>${canDownload ? `<button class="btn" type="button" data-customer-action="download-invoice" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.downloadPdf"))}</button>` : `<span class="hint">${escapeHtml(tt("customerPortal.invoices.viewOnly"))}</span>`}</td>
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function canCustomerDownloadInvoice(user = getCurrentOperator()) {
+    const role = String(user?.role || "").toUpperCase();
+    if (role === "CUSTOMER_ADMIN" || role === "CUSTOMER_BUYER") {
+      return true;
+    }
+    if (role === "CUSTOMER_VIEWER") {
+      return Boolean(state.data.invoice_settings?.customer_viewer_can_download_invoice ?? true);
+    }
+    return false;
+  }
+
+  function renderCustomerShipmentsPage() {
+    const section = document.getElementById("customerShipmentsPage");
+    if (!section) {
+      return;
+    }
+    const customer = getCurrentCustomer();
+    const shipments = state.data.shipments.filter((shipment) => shipment.customer_id === customer?.id);
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.shipments.title"))}</h3>
+          <span class="hint">${escapeHtml(tt("customerPortal.shipments.hint"))}</span>
+        </div>
+        ${renderSimpleShipmentTable(shipments)}
+      </div>
+    `;
+  }
+
+  function renderCustomerAccountPage() {
+    const section = document.getElementById("customerAccountPage");
+    if (!section) {
+      return;
+    }
+    const customer = getCurrentCustomer();
+    const user = getCurrentOperator();
+    section.innerHTML = `
+      <div class="panel">
+        <div class="panel-head">
+          <h3>${escapeHtml(tt("customerPortal.account.title"))}</h3>
+          <span class="hint">${escapeHtml(renderRoleLabel(user?.role || ""))}</span>
+        </div>
+        <div class="detail-grid">
+          ${buildDetailItem(tt("customerPortal.account.company"), renderBusinessName(customer?.customer_name) || "-")}
+          ${buildDetailItem(tt("customerPortal.account.customerCode"), customer?.customer_code || "-")}
+          ${buildDetailItem("VAT ID", customer?.vat_id || "-")}
+          ${buildDetailItem(tt("customerPortal.account.paymentTerms"), customer?.payment_terms || "-")}
+          ${buildDetailItem(tt("customerPortal.account.billingAddress"), customer?.billing_address || "-")}
+          ${buildDetailItem(tt("customerPortal.account.shippingAddress"), customer?.shipping_address || "-")}
+          ${buildDetailItem(tt("customerPortal.account.invoiceEmail"), customer?.invoice_email || "-")}
+          ${buildDetailItem(tt("customerPortal.account.deliveryContact"), customer?.delivery_contact_name || "-")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAdminDashboard() {
+    const operator = getCurrentOperator();
+    const orders = getCustomerOrders();
+    const pendingOrders = orders.filter((order) => ["SUBMITTED", "PENDING_APPROVAL"].includes(String(order.order_status || "").toUpperCase()));
+    const approvedOrders = orders.filter((order) => String(order.order_status || "").toUpperCase() === "APPROVED");
+    const piNeededOrders = approvedOrders.filter((order) => !hasActiveInvoiceForOrder(order.id, "PROFORMA_INVOICE"));
+    const unpaidInvoices = state.data.invoices.filter((invoice) => invoice.invoice_status !== "CANCELLED" && !["PAID", "CREDIT_TERM_CONFIRMED"].includes(String(invoice.payment_status || "").toUpperCase()));
+    const readyShipOrders = orders.filter((order) => canGenerateDeliveryInstruction(order));
+    const lowStock = state.data.inventory.filter((item) => toNumber(item.available_stock, 0) <= INVENTORY_LOW_STOCK_THRESHOLD);
+    const approvalRows = buildApprovalCenterRows(operator);
+    const actionableTodos = approvalRows.filter((row) => canProcessDashboardApprovalRow(row, operator));
+    const riskItems = buildDashboardRiskItems({ orders, lowStock, unpaidInvoices, piNeededOrders, readyShipOrders });
+    if (dom.adminDashboardRoleHint) {
+      dom.adminDashboardRoleHint.textContent = buildDashboardRoleHint(operator);
+    }
+    if (dom.dashboardQuickActions) {
+      dom.dashboardQuickActions.innerHTML = buildDashboardQuickActions(operator).map((action) => renderDashboardActionButton(action)).join("");
+    }
+    if (dom.adminDashboardCards) {
+      dom.adminDashboardCards.innerHTML = [
+        renderSummaryCard(tt("dashboard.cards.myTasks"), String(actionableTodos.length), tt("dashboard.cards.myTasksHint")),
+        renderSummaryCard(tt("dashboard.cards.pendingPi"), String(piNeededOrders.length), tt("dashboard.cards.pendingPiHint")),
+        renderSummaryCard(tt("dashboard.cards.pendingPayment"), String(unpaidInvoices.length), tt("dashboard.cards.pendingPaymentHint")),
+        renderSummaryCard(tt("dashboard.cards.lowStockSkus"), String(lowStock.length), tt("dashboard.cards.lowStockHint")),
+      ].join("");
+    }
+    if (dom.dashboardTradePipeline) {
+      dom.dashboardTradePipeline.innerHTML = renderDashboardPipeline({ pendingOrders, approvedOrders, piNeededOrders, unpaidInvoices, readyShipOrders });
+    }
+    if (dom.dashboardTodoSummary) {
+      dom.dashboardTodoSummary.textContent = actionableTodos.length ? tt("dashboard.todo.summary", { count: actionableTodos.length, role: renderRoleLabel(operator?.role || "") }) : tt("dashboard.todo.emptySummary");
+    }
+    if (dom.dashboardTodoList) {
+      dom.dashboardTodoList.innerHTML = renderDashboardTodoList(actionableTodos, piNeededOrders, unpaidInvoices, readyShipOrders, operator);
+    }
+    if (dom.dashboardRiskSummary) {
+      dom.dashboardRiskSummary.textContent = riskItems.length ? tt("dashboard.risk.summary", { count: riskItems.length }) : tt("dashboard.risk.emptySummary");
+    }
+    if (dom.dashboardRiskList) {
+      dom.dashboardRiskList.innerHTML = renderDashboardRiskList(riskItems);
+    }
+    if (dom.dashboardOrdersTableBody) {
+      dom.dashboardOrdersTableBody.innerHTML =
+        pendingOrders.length === 0
+          ? `<tr><td colspan="6">${escapeHtml(tt("dashboard.orders.empty"))}</td></tr>`
+          : pendingOrders
+              .slice(0, 8)
+              .map(
+                (order) => `
+                  <tr>
+                    <td>${escapeHtml(order.order_no)}</td>
+                    <td>${escapeHtml(renderBusinessName(order.customer_name))}</td>
+                    <td>${escapeHtml(formatCurrencyAmount(order.total_amount, order.currency))}</td>
+                    <td>${renderStatusBadge(order.order_status)}</td>
+                    <td>${renderStatusBadge(order.approval_status)}</td>
+                    <td>${escapeHtml(formatDateTime(order.created_at))}</td>
+                  </tr>
+                `
+              )
+              .join("");
+    }
+    focusDashboardSection(false);
+  }
+
+  function buildDashboardRoleHint(operator) {
+    const role = String(operator?.role || "");
+    const roleName = renderRoleLabel(role);
+    const hints = {
+      SALES_ENTRY: tt("dashboard.roleHint.SALES_ENTRY"),
+      SALES_MANAGER: tt("dashboard.roleHint.SALES_MANAGER"),
+      BUSINESS_HEAD: tt("dashboard.roleHint.BUSINESS_HEAD"),
+      FINANCE_HEAD: tt("dashboard.roleHint.FINANCE_HEAD"),
+      SYSTEM_ADMIN: tt("dashboard.roleHint.SYSTEM_ADMIN"),
+    };
+    return tt("dashboard.roleHintText", { role: roleName, hint: hints[role] || tt("dashboard.roleHint.default") });
+  }
+
+  function buildDashboardQuickActions(operator) {
+    const role = String(operator?.role || "");
+    const actions = [];
+    if (canAccessPage("quoteCreatePage")) actions.push({ label: tt("action.createQuote"), page: "quoteCreatePage", navKey: "quote-management", primary: true });
+    if (canAccessPage("approvalPage") && ["SALES_MANAGER", "BUSINESS_HEAD", "SYSTEM_ADMIN"].includes(role)) actions.push({ label: tt("action.processApproval"), page: "approvalPage", navKey: "approval-management", primary: true });
+    if (canAccessPage("invoicePage") && ["FINANCE_HEAD", "SYSTEM_ADMIN"].includes(role)) actions.push({ label: tt("action.generateCollectPayment"), page: "invoicePage", navKey: "invoice-management", primary: true });
+    if (canAccessPage("orderPage")) actions.push({ label: tt("action.orderCenter"), page: "orderPage", navKey: "order-management" });
+    if (canAccessPage("shipmentPage") && ["FINANCE_HEAD", "SYSTEM_ADMIN"].includes(role)) actions.push({ label: tt("action.shipmentInstruction"), page: "shipmentPage", navKey: "shipment-management" });
+    return actions.slice(0, 4);
+  }
+
+  function renderDashboardActionButton(action) {
+    return `
+      <button class="btn ${action.primary ? "btn-primary" : ""}" type="button"
+        data-dashboard-target="${escapeHtml(action.page)}"
+        data-dashboard-nav-key="${escapeHtml(action.navKey || "")}"
+        data-dashboard-focus="${escapeHtml(action.dashboardFocus || "")}">
+        ${escapeHtml(action.label)}
+      </button>
+    `;
+  }
+
+  function renderDashboardPipeline({ pendingOrders, approvedOrders, piNeededOrders, unpaidInvoices, readyShipOrders }) {
+    const stages = [
+      { label: tt("dashboard.pipeline.quotation"), value: state.data.quotes.length, hint: tt("dashboard.pipeline.quotationHint"), page: "quoteQueryPage", navKey: "quote-management" },
+      { label: tt("dashboard.pipeline.order"), value: pendingOrders.length + approvedOrders.length, hint: tt("dashboard.pipeline.orderHint"), page: "orderPage", navKey: "order-management" },
+      { label: tt("dashboard.pipeline.approval"), value: pendingOrders.length, hint: tt("dashboard.pipeline.approvalHint"), page: "approvalPage", navKey: "approval-management" },
+      { label: tt("dashboard.pipeline.invoice"), value: piNeededOrders.length + unpaidInvoices.length, hint: tt("dashboard.pipeline.invoiceHint"), page: "invoicePage", navKey: "invoice-management" },
+      { label: tt("dashboard.pipeline.shipment"), value: readyShipOrders.length, hint: tt("dashboard.pipeline.shipmentHint"), page: "shipmentPage", navKey: "shipment-management" },
+    ];
+    return stages
+      .map(
+        (stage) => `
+          <button class="pipeline-step" type="button" data-dashboard-target="${escapeHtml(stage.page)}" data-dashboard-nav-key="${escapeHtml(stage.navKey)}">
+            <span>${escapeHtml(stage.label)}</span>
+            <strong>${escapeHtml(String(stage.value))}</strong>
+            <small>${escapeHtml(stage.hint)}</small>
+          </button>
+        `
+      )
+      .join("");
+  }
+
+  function canProcessDashboardApprovalRow(row, operator) {
+    if (row.scope === "quote" || row.scope === "order") return canCurrentOperatorProcessApproval(row.approval, operator);
+    if (row.scope === "customer") return canCurrentOperatorProcessCustomerRequest(row.request, operator);
+    if (row.scope === "account") return canCurrentOperatorProcessAccountRequest(row.request, operator);
+    return false;
+  }
+
+  function renderDashboardTodoList(approvalRows, piNeededOrders, unpaidInvoices, readyShipOrders, operator) {
+    const items = approvalRows.slice(0, 6).map((row) => ({
+      title: `${row.approvalType} · ${renderBusinessName(row.targetName) || row.targetName}`,
+      meta: `${row.targetCode} / ${row.amount}`,
+      status: row.approvalStatus,
+      page: row.scope === "order" ? "approvalPage" : row.scope === "customer" ? "approvalPage" : row.scope === "account" ? "approvalPage" : "approvalPage",
+      navKey: "approval-management",
+    }));
+    if (["FINANCE_HEAD", "SYSTEM_ADMIN"].includes(String(operator?.role || ""))) {
+      piNeededOrders.slice(0, 3).forEach((order) =>
+        items.push({
+          title: tt("dashboard.todo.generatePi", { customer: renderBusinessName(order.customer_name) }),
+          meta: `${order.order_no} / ${formatCurrencyAmount(order.total_amount, order.currency)}`,
+          status: "NOT_GENERATED",
+          page: "invoicePage",
+          navKey: "invoice-management",
+        })
+      );
+      unpaidInvoices.slice(0, 3).forEach((invoice) =>
+        items.push({
+          title: tt("dashboard.todo.confirmPayment", { customer: renderBusinessName(invoice.customer_name) }),
+          meta: `${invoice.invoice_no} / ${formatCurrencyAmount(invoice.total_gross, invoice.currency)}`,
+          status: invoice.payment_status,
+          page: "invoicePage",
+          navKey: "invoice-management",
+        })
+      );
+      readyShipOrders.slice(0, 3).forEach((order) =>
+        items.push({
+          title: tt("dashboard.todo.generateShipment", { customer: renderBusinessName(order.customer_name) }),
+          meta: `${order.order_no} / ${renderOrderItemSummary(order.id)}`,
+          status: order.shipment_status || "READY_TO_SHIP",
+          page: "shipmentPage",
+          navKey: "shipment-management",
+        })
+      );
+    }
+    if (!items.length) {
+      return `<div class="detail-placeholder">${escapeHtml(tt("dashboard.todo.empty"))}</div>`;
+    }
+    return items.slice(0, 8).map((item) => renderWorkbenchListItem(item)).join("");
+  }
+
+  function buildDashboardRiskItems({ orders, lowStock, unpaidInvoices, piNeededOrders, readyShipOrders }) {
+    const today = getTodayValue();
+    const missingBillingCustomers = state.data.customers.filter((customer) => !customer.vat_id || !customer.billing_address || !customer.invoice_email);
+    const overdueInvoices = unpaidInvoices.filter((invoice) => invoice.due_date && invoice.due_date < today);
+    const risks = [];
+    lowStock.slice(0, 5).forEach((item) => {
+      risks.push({
+        title: tt("dashboard.risk.lowStock", { sku: item.sku }),
+        meta: tt("dashboard.risk.lowStockMeta", { available: item.available_stock, safety: item.safety_stock }),
+        status: toNumber(item.available_stock, 0) <= 0 ? "RED" : "YELLOW",
+        page: "inventoryPage",
+        navKey: "inventory-low-stock",
+        inventoryFocus: "low-stock",
+      });
+    });
+    overdueInvoices.slice(0, 4).forEach((invoice) => {
+      risks.push({
+        title: tt("dashboard.risk.overdueInvoice", { invoiceNo: invoice.invoice_no }),
+        meta: `${renderBusinessName(invoice.customer_name)} / ${escapeHtml(tt("invoice.table.dueDate"))} ${formatDateValue(invoice.due_date)}`,
+        status: "RED",
+        page: "invoicePage",
+        navKey: "invoice-management",
+      });
+    });
+    piNeededOrders.slice(0, 4).forEach((order) => {
+      risks.push({
+        title: tt("dashboard.risk.approvedNoPi", { orderNo: order.order_no }),
+        meta: `${renderBusinessName(order.customer_name)} / ${formatCurrencyAmount(order.total_amount, order.currency)}`,
+        status: "YELLOW",
+        page: "invoicePage",
+        navKey: "invoice-management",
+      });
+    });
+    readyShipOrders.slice(0, 4).forEach((order) => {
+      risks.push({
+        title: tt("dashboard.risk.paidReadyShipment", { orderNo: order.order_no }),
+        meta: `${renderBusinessName(order.customer_name)} / ${renderOrderItemSummary(order.id)}`,
+        status: "YELLOW",
+        page: "shipmentPage",
+        navKey: "shipment-management",
+      });
+    });
+    missingBillingCustomers.slice(0, 4).forEach((customer) => {
+      risks.push({
+        title: tt("dashboard.risk.missingBilling", { customer: renderBusinessName(customer.customer_name) }),
+        meta: [!customer.vat_id ? "VAT ID" : "", !customer.billing_address ? "Billing Address" : "", !customer.invoice_email ? "Invoice Email" : ""].filter(Boolean).join(" / "),
+        status: "YELLOW",
+        page: "customerPage",
+        navKey: "customer-credit",
+        customerFocus: "credit",
+      });
+    });
+    return risks.slice(0, 10);
+  }
+
+  function renderDashboardRiskList(items) {
+    if (!items.length) {
+      return `<div class="detail-placeholder">${escapeHtml(tt("dashboard.risk.empty"))}</div>`;
+    }
+    return items.map((item) => renderWorkbenchListItem(item)).join("");
+  }
+
+  function renderWorkbenchListItem(item) {
+    return `
+      <button class="workbench-item" type="button"
+        data-dashboard-target="${escapeHtml(item.page)}"
+        data-dashboard-nav-key="${escapeHtml(item.navKey || "")}"
+        data-dashboard-focus="${escapeHtml(item.dashboardFocus || "")}"
+        data-dashboard-customer-focus="${escapeHtml(item.customerFocus || "")}"
+        data-dashboard-inventory-focus="${escapeHtml(item.inventoryFocus || "")}">
+        <span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.meta || "")}</small>
+        </span>
+        ${renderStatusBadge(item.status)}
+      </button>
+    `;
+  }
+
+  function onDashboardNavigate(event) {
+    const button = closestDataButton(event, "dashboardTarget");
+    if (!button) {
+      return;
+    }
+    switchPage(String(button.dataset.dashboardTarget || "dashboardPage"), {
+      navKey: button.dataset.dashboardNavKey || "",
+      dashboardFocus: button.dataset.dashboardFocus || "",
+      customerFocus: button.dataset.dashboardCustomerFocus || "",
+      inventoryFocus: button.dataset.dashboardInventoryFocus || "",
+    });
+  }
+
+  function focusDashboardSection(scrollIntoView = true) {
+    if (state.ui.currentPage !== "dashboardPage") {
+      return;
+    }
+    const focus = state.ui.dashboardFocus || "overview";
+    const panels = Array.from(document.querySelectorAll("[data-dashboard-section]"));
+    panels.forEach((panel) => panel.classList.toggle("is-focused", panel.dataset.dashboardSection === focus));
+    if (scrollIntoView && focus !== "overview") {
+      const target = panels.find((panel) => panel.dataset.dashboardSection === focus);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function renderOrdersPage() {
+    if (!dom.ordersTableBody) {
+      return;
+    }
+    const orders = getCustomerOrders();
+    if (dom.ordersSummary) {
+      dom.ordersSummary.textContent = orders.length === 0 ? tt("order.summary.empty") : tt("order.summary.count", { count: orders.length });
+    }
+    if (orders.length === 0) {
+      dom.ordersTableBody.innerHTML = `<tr><td colspan="10">${escapeHtml(tt("order.summary.empty"))}</td></tr>`;
+      return;
+    }
+    dom.ordersTableBody.innerHTML = orders
+      .map((order) => {
+        const approval = getApprovalByOrderId(order.id);
+        const canProcess = approval ? canCurrentOperatorProcessApproval(approval, getCurrentOperator()) : false;
+        const canGeneratePi = canGenerateInvoiceForOrder(order, "PROFORMA_INVOICE");
+        return `
+          <tr>
+            <td>${escapeHtml(order.order_no)}</td>
+            <td>${escapeHtml(renderBusinessName(order.customer_name))}</td>
+            <td>${escapeHtml(renderOrderItemSummary(order.id))}</td>
+            <td>${escapeHtml(formatCurrencyAmount(order.total_amount, order.currency))}</td>
+            <td>${renderStatusBadge(order.order_status)}</td>
+            <td>${renderStatusBadge(order.approval_status)}</td>
+            <td>${renderStatusBadge(order.invoice_status || "NOT_GENERATED")}</td>
+            <td>${renderStatusBadge(order.shipment_status || "PENDING")}</td>
+            <td>${escapeHtml(formatDateTime(order.created_at))}</td>
+            <td>
+              <div class="inline-actions inline-actions-compact">
+                <button class="btn" type="button" data-order-action="view" data-order-id="${escapeHtml(order.id)}">${escapeHtml(tt("action.view"))}</button>
+                ${canGeneratePi ? `<button class="btn btn-primary" type="button" data-order-action="generate-pi" data-order-id="${escapeHtml(order.id)}">${escapeHtml(tt("action.generatePi"))}</button>` : ""}
+                ${canProcess ? `<button class="btn" type="button" data-order-action="approve" data-order-id="${escapeHtml(order.id)}">${escapeHtml(tt("action.approve"))}</button>` : ""}
+                ${canProcess ? `<button class="btn btn-danger" type="button" data-order-action="reject" data-order-id="${escapeHtml(order.id)}">${escapeHtml(tt("action.reject"))}</button>` : ""}
+              </div>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function renderInventoryPage() {
+    if (!dom.inventoryTableBody) {
+      return;
+    }
+    dom.inventoryTableBody.innerHTML =
+      state.data.inventory.length === 0
+        ? `<tr><td colspan="9">${escapeHtml(tr("暂无库存数据"))}</td></tr>`
+        : state.data.inventory
+            .map((inventory) => {
+              const product = getProductById(inventory.product_id) || findProductBySku(inventory.sku);
+              recalculateInventory(inventory);
+              return `
+                <tr>
+                  <td>${escapeHtml(inventory.sku)}</td>
+                  <td>${escapeHtml(product?.product_name || "-")}</td>
+                  <td>${escapeHtml(inventory.warehouse || "-")}</td>
+                  <td>${escapeHtml(String(inventory.total_stock))}</td>
+                  <td>${escapeHtml(String(inventory.available_stock))}</td>
+                  <td>${escapeHtml(String(inventory.reserved_stock))}</td>
+                  <td>${escapeHtml(String(inventory.locked_stock))}</td>
+                  <td>${escapeHtml(String(inventory.safety_stock))}</td>
+                  <td>${escapeHtml(formatDateTime(inventory.updated_at))}</td>
+                </tr>
+              `;
+            })
+            .join("");
+  }
+
+  function renderInvoicesPage() {
+    if (!dom.invoicesTableBody) {
+      return;
+    }
+    renderInvoiceFilterOptions();
+    const invoices = getFilteredInvoices();
+    dom.invoicesTableBody.innerHTML =
+      invoices.length === 0
+        ? `<tr><td colspan="13">${escapeHtml(tt("invoice.noInvoices"))}</td></tr>`
+        : invoices.map((invoice) => renderInvoiceTableRow(invoice)).join("");
+    renderInvoiceReadyOrdersTable();
+    renderInvoiceDetail();
+  }
+
+  function renderInvoiceFilterOptions() {
+    populateChoiceOptions(dom.invoiceFilterType, INVOICE_TYPES.map((item) => ({ value: item, label: renderInvoiceType(item) })));
+    populateChoiceOptions(dom.invoiceFilterStatus, INVOICE_STATUSES.map((item) => ({ value: item, label: renderPlainStatus(item) })));
+    populateChoiceOptions(dom.invoiceFilterPaymentStatus, PAYMENT_STATUSES.map((item) => ({ value: item, label: renderPlainStatus(item) })));
+    setInputValue(dom.invoiceFilterNo, state.ui.invoiceFilters.invoiceNo);
+    setInputValue(dom.invoiceFilterOrderNo, state.ui.invoiceFilters.orderNo);
+    setInputValue(dom.invoiceFilterCustomerName, state.ui.invoiceFilters.customerName);
+    setInputValue(dom.invoiceFilterDateFrom, state.ui.invoiceFilters.dateFrom);
+    setInputValue(dom.invoiceFilterDateTo, state.ui.invoiceFilters.dateTo);
+    if (dom.invoiceFilterType) {
+      dom.invoiceFilterType.value = state.ui.invoiceFilters.invoiceType;
+    }
+    if (dom.invoiceFilterStatus) {
+      dom.invoiceFilterStatus.value = state.ui.invoiceFilters.invoiceStatus;
+    }
+    if (dom.invoiceFilterPaymentStatus) {
+      dom.invoiceFilterPaymentStatus.value = state.ui.invoiceFilters.paymentStatus;
+    }
+  }
+
+  function renderInvoiceTableRow(invoice) {
+    const canMarkPaid = canMarkInvoicePayment();
+    const canCancel = canCancelInvoice();
+    const canCreateCommercial = canGenerateInvoiceType("COMMERCIAL_INVOICE");
+    const canCreateCreditNote = canGenerateInvoiceType("CREDIT_NOTE");
+    return `
+      <tr>
+        <td>${escapeHtml(invoice.invoice_no)}</td>
+        <td>${escapeHtml(invoice.order_no || getOrderById(invoice.order_id)?.order_no || "-")}</td>
+        <td>${escapeHtml(invoice.customer_name || "-")}</td>
+        <td>${escapeHtml(renderInvoiceType(invoice.invoice_type))}</td>
+        <td>${escapeHtml(formatMoney(invoice.subtotal_net))}</td>
+        <td>${escapeHtml(formatMoney(invoice.vat_amount))}</td>
+        <td>${escapeHtml(formatMoney(invoice.total_gross))}</td>
+        <td>${escapeHtml(invoice.currency || "-")}</td>
+        <td>${renderStatusBadge(invoice.invoice_status)}</td>
+        <td>${renderStatusBadge(invoice.payment_status)}</td>
+        <td>${escapeHtml(formatDateValue(invoice.date_of_issue))}</td>
+        <td>${escapeHtml(formatDateValue(invoice.due_date))}</td>
+        <td>
+          <div class="inline-actions inline-actions-compact">
+            <button class="btn" type="button" data-invoice-action="view" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.view"))}</button>
+            <button class="btn" type="button" data-invoice-action="download" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.downloadPdf"))}</button>
+            ${invoice.invoice_status === "GENERATED" ? `<button class="btn" type="button" data-invoice-action="sent" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.markAsSent"))}</button>` : ""}
+            ${canMarkPaid && invoice.payment_status !== "PAID" ? `<button class="btn" type="button" data-invoice-action="paid" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.markAsPaid"))}</button>` : ""}
+            ${canMarkPaid && invoice.payment_status !== "CREDIT_TERM_CONFIRMED" ? `<button class="btn" type="button" data-invoice-action="credit-term" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.confirmCreditTerm"))}</button>` : ""}
+            ${canCancel && invoice.invoice_status !== "CANCELLED" ? `<button class="btn btn-danger" type="button" data-invoice-action="cancel" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.cancel"))}</button>` : ""}
+            ${canCreateCommercial && invoice.invoice_type === "PROFORMA_INVOICE" ? `<button class="btn" type="button" data-invoice-action="commercial" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.createCommercialInvoice"))}</button>` : ""}
+            ${canCreateCreditNote && invoice.invoice_status !== "CANCELLED" ? `<button class="btn" type="button" data-invoice-action="credit-note" data-invoice-id="${escapeHtml(invoice.id)}">${escapeHtml(tt("action.createCreditNote"))}</button>` : ""}
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function renderInvoiceReadyOrdersTable() {
+    if (!dom.invoiceReadyOrdersTableBody) {
+      return;
+    }
+    const rows = getCustomerOrders().filter((order) => canGenerateInvoiceForOrder(order, "PROFORMA_INVOICE"));
+    dom.invoiceReadyOrdersTableBody.innerHTML =
+      rows.length === 0
+        ? `<tr><td colspan="6">${escapeHtml(tt("invoice.noReadyOrders"))}</td></tr>`
+        : rows
+            .map(
+              (order) => `
+                <tr>
+                  <td>${escapeHtml(order.order_no)}</td>
+                  <td>${escapeHtml(renderBusinessName(order.customer_name))}</td>
+                  <td>${escapeHtml(formatCurrencyAmount(order.total_amount, order.currency))}</td>
+                  <td>${escapeHtml(order.currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY)}</td>
+                  <td>${renderStatusBadge(order.invoice_status || "NOT_GENERATED")}</td>
+                  <td><button class="btn btn-primary" type="button" data-ready-invoice-action="generate-pi" data-order-id="${escapeHtml(order.id)}">${escapeHtml(tt("action.generatePi"))}</button></td>
+                </tr>
+              `
+            )
+            .join("");
+  }
+
+  function getFilteredInvoices() {
+    const filters = state.ui.invoiceFilters || {};
+    return state.data.invoices
+      .slice()
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at), "zh-CN"))
+      .filter((invoice) => {
+        if (filters.invoiceNo && !String(invoice.invoice_no || "").toLowerCase().includes(filters.invoiceNo.toLowerCase())) {
+          return false;
+        }
+        if (filters.orderNo && !String(invoice.order_no || "").toLowerCase().includes(filters.orderNo.toLowerCase())) {
+          return false;
+        }
+        if (filters.customerName && !String(invoice.customer_name || "").toLowerCase().includes(filters.customerName.toLowerCase())) {
+          return false;
+        }
+        if (filters.invoiceType && invoice.invoice_type !== filters.invoiceType) {
+          return false;
+        }
+        if (filters.invoiceStatus && invoice.invoice_status !== filters.invoiceStatus) {
+          return false;
+        }
+        if (filters.paymentStatus && invoice.payment_status !== filters.paymentStatus) {
+          return false;
+        }
+        if (filters.dateFrom && String(invoice.date_of_issue || "") < filters.dateFrom) {
+          return false;
+        }
+        if (filters.dateTo && String(invoice.date_of_issue || "") > filters.dateTo) {
+          return false;
+        }
+        return true;
+      });
+  }
+
+  function onQueryInvoices() {
+    state.ui.invoiceFilters = {
+      invoiceNo: String(dom.invoiceFilterNo?.value || "").trim(),
+      orderNo: String(dom.invoiceFilterOrderNo?.value || "").trim(),
+      customerName: String(dom.invoiceFilterCustomerName?.value || "").trim(),
+      invoiceType: String(dom.invoiceFilterType?.value || "").trim(),
+      invoiceStatus: String(dom.invoiceFilterStatus?.value || "").trim(),
+      paymentStatus: String(dom.invoiceFilterPaymentStatus?.value || "").trim(),
+      dateFrom: String(dom.invoiceFilterDateFrom?.value || "").trim(),
+      dateTo: String(dom.invoiceFilterDateTo?.value || "").trim(),
+    };
+    renderInvoicesPage();
+  }
+
+  function onResetInvoiceFilters() {
+    state.ui.invoiceFilters = {
+      invoiceNo: "",
+      orderNo: "",
+      customerName: "",
+      invoiceType: "",
+      invoiceStatus: "",
+      paymentStatus: "",
+      dateFrom: "",
+      dateTo: "",
+    };
+    renderInvoicesPage();
+  }
+
+  function canGenerateInvoiceType(invoiceType, user = getCurrentOperator()) {
+    const role = String(user?.role || "");
+    if (role === "SYSTEM_ADMIN") {
+      return true;
+    }
+    if (invoiceType === "PROFORMA_INVOICE") {
+      return ["SALES_ENTRY", "SALES_MANAGER", "FINANCE_HEAD", "BUSINESS_HEAD"].includes(role);
+    }
+    if (invoiceType === "COMMERCIAL_INVOICE" || invoiceType === "CREDIT_NOTE") {
+      return role === "FINANCE_HEAD";
+    }
+    return false;
+  }
+
+  function canGenerateInvoiceForOrder(order, invoiceType = "PROFORMA_INVOICE", user = getCurrentOperator()) {
+    if (!order || !canGenerateInvoiceType(invoiceType, user)) {
+      return false;
+    }
+    if (String(order.order_status || "").toUpperCase() !== "APPROVED" && String(order.order_status || "").toUpperCase() !== "PAYMENT_CONFIRMED") {
+      return false;
+    }
+    if (String(order.approval_status || "").toUpperCase() !== "APPROVED") {
+      return false;
+    }
+    if (invoiceType === "PROFORMA_INVOICE") {
+      return !hasActiveInvoiceForOrder(order.id, "PROFORMA_INVOICE");
+    }
+    if (invoiceType === "COMMERCIAL_INVOICE") {
+      return !hasActiveInvoiceForOrder(order.id, "COMMERCIAL_INVOICE");
+    }
+    return true;
+  }
+
+  function canMarkInvoicePayment(user = getCurrentOperator()) {
+    return ["FINANCE_HEAD", "SYSTEM_ADMIN"].includes(String(user?.role || ""));
+  }
+
+  function canCancelInvoice(user = getCurrentOperator()) {
+    return ["FINANCE_HEAD", "SYSTEM_ADMIN"].includes(String(user?.role || ""));
+  }
+
+  function hasActiveInvoiceForOrder(orderId, invoiceType) {
+    return state.data.invoices.some((invoice) => invoice.order_id === orderId && invoice.invoice_type === invoiceType && invoice.invoice_status !== "CANCELLED");
+  }
+
+  function getQuotationById(id) {
+    return state.data.order_quotations.find((item) => item.id === id) || null;
+  }
+
+  function getInvoiceById(id) {
+    return state.data.invoices.find((item) => item.id === id || item.invoice_id === id) || null;
+  }
+
+  function getInvoiceItems(invoiceId) {
+    return state.data.invoice_items.filter((item) => item.invoice_id === invoiceId).sort((a, b) => toNumber(a.sort_order, 0) - toNumber(b.sort_order, 0));
+  }
+
+  function validateInvoiceSource(order, invoiceType) {
+    const errors = [];
+    const customer = getCustomerById(order?.customer_id);
+    const quotation = getQuotationById(order?.quotation_id);
+    const items = getOrderItems(order?.id);
+    if (!order) {
+      errors.push(tt("validation.invoice.orderMissing"));
+    }
+    if (order && String(order.order_status || "").toUpperCase() !== "APPROVED" && String(order.order_status || "").toUpperCase() !== "PAYMENT_CONFIRMED") {
+      errors.push(tt("validation.invoice.orderNotApproved"));
+    }
+    if (order && String(order.approval_status || "").toUpperCase() !== "APPROVED") {
+      errors.push(tt("validation.invoice.orderNotApproved"));
+    }
+    if (!quotation || String(quotation.quotation_status || "").toUpperCase() !== "LOCKED") {
+      errors.push(tt("validation.invoice.lockedQuotationMissing"));
+    }
+    if (hasActiveInvoiceForOrder(order?.id, invoiceType)) {
+      errors.push(tt("validation.invoice.alreadyExists"));
+    }
+    if (!customer?.vat_id) {
+      errors.push(tt("validation.invoice.missingVatId"));
+    }
+    if (!customer?.billing_address) {
+      errors.push(tt("validation.invoice.missingBillingAddress"));
+    }
+    if (!customer?.country) {
+      errors.push(tt("validation.invoice.missingCountry"));
+    }
+    if (!customer?.invoice_email) {
+      errors.push(tt("validation.invoice.missingInvoiceEmail"));
+    }
+    if (!items.length) {
+      errors.push(tt("validation.invoice.itemMissing"));
+    }
+    items.forEach((item) => {
+      if (toNumber(item.quantity, 0) <= 0) {
+        errors.push(tt("validation.invoice.quantityInvalid", { sku: item.sku }));
+      }
+      if (item.unit_price_snapshot == null || !item.price_snapshot_json) {
+        errors.push(tt("validation.invoice.priceSnapshotMissing"));
+      }
+    });
+    return { ok: errors.length === 0, errors, customer, quotation, items };
+  }
+
+  function generateInvoiceNo(invoiceType, date = new Date()) {
+    const prefix = invoiceType === "PROFORMA_INVOICE" ? "PI" : invoiceType === "CREDIT_NOTE" ? "CN" : "INV";
+    const year = date.getFullYear();
+    const existing = state.data.invoices
+      .map((invoice) => String(invoice.invoice_no || ""))
+      .filter((no) => no.startsWith(`${prefix}-${year}-`))
+      .map((no) => Number(no.split("-").pop()))
+      .filter((num) => Number.isFinite(num));
+    let next = existing.length ? Math.max(...existing) + 1 : 1;
+    let invoiceNo = `${prefix}-${year}-${String(next).padStart(4, "0")}`;
+    while (state.data.invoices.some((invoice) => invoice.invoice_no === invoiceNo)) {
+      next += 1;
+      invoiceNo = `${prefix}-${year}-${String(next).padStart(4, "0")}`;
+    }
+    return invoiceNo;
+  }
+
+  function createInvoiceFromOrder(orderId, invoiceType = "PROFORMA_INVOICE", options = {}) {
+    const order = getOrderById(orderId);
+    const validation = validateInvoiceSource(order, invoiceType);
+    if (!validation.ok) {
+      throw new Error(validation.errors[0]);
+    }
+    const { customer, quotation, items } = validation;
+    const settings = normalizeInvoiceSettings(state.data.invoice_settings);
+    const now = nowIso();
+    const dateOfIssue = now.slice(0, 10);
+    const paymentDays = parsePaymentDays(customer.payment_terms, settings.default_payment_days);
+    const dueDate = addDaysToDateValue(dateOfIssue, paymentDays);
+    const reverseChargeApplied = Boolean(options.reverse_charge_applied ?? customer.reverse_charge_eligible);
+    if (reverseChargeApplied && !customer.vat_id) {
+      throw new Error(tt("validation.invoice.missingVatId"));
+    }
+    const invoiceNo = generateInvoiceNo(invoiceType, new Date(`${dateOfIssue}T00:00:00`));
+    const invoiceId = buildId("invoice");
+    const invoiceItems = buildInvoiceItemsFromOrderItems(invoiceId, items, reverseChargeApplied);
+    const subtotalNet = roundMoney(invoiceItems.reduce((sum, item) => sum + toNumber(item.net_amount, 0), 0));
+    const vatRate = reverseChargeApplied ? 0 : resolveInvoiceVatRate(invoiceItems);
+    const vatAmount = roundMoney(reverseChargeApplied ? 0 : subtotalNet * vatRate);
+    const totalGross = roundMoney(subtotalNet + vatAmount);
+    const expectedTotal = reverseChargeApplied ? roundMoney(order.subtotal) : roundMoney(order.total_amount);
+    if (Math.abs(totalGross - expectedTotal) > 0.02) {
+      throw new Error(tt("validation.invoice.totalMismatch"));
+    }
+    const smvNotes = buildSmvNotes(invoiceItems);
+    const invoice = {
+      id: invoiceId,
+      invoice_id: invoiceId,
+      invoice_no: invoiceNo,
+      invoice_type: invoiceType,
+      invoice_status: "GENERATED",
+      order_id: order.id,
+      order_no: order.external_order_reference || order.order_no,
+      order_reference: order.external_order_reference || order.order_no,
+      quotation_id: quotation.id,
+      customer_id: customer.id,
+      customer_name: customer.customer_name,
+      customer_company_no: customer.company_no || customer.customer_code,
+      customer_vat_id: customer.vat_id,
+      customer_email: customer.invoice_email || customer.email || "",
+      customer_country: customer.country || customer.region || "",
+      billing_address: customer.billing_address,
+      shipping_address: customer.shipping_address || customer.delivery_address || "",
+      currency: order.currency || settings.default_currency,
+      date_of_issue: dateOfIssue,
+      due_date: dueDate,
+      payment_terms: customer.payment_terms || `${paymentDays} days`,
+      subtotal_net: subtotalNet,
+      vat_rate: vatRate,
+      vat_amount: vatAmount,
+      total_gross: totalGross,
+      reverse_charge_applied: reverseChargeApplied,
+      smv_note_applied: smvNotes.length > 0,
+      smv_notes: smvNotes,
+      payment_status: "UNPAID",
+      pdf_url: buildInvoicePdfFilename(invoiceNo, customer.customer_name),
+      created_by: getCurrentOperator()?.id || "",
+      created_at: now,
+      updated_at: now,
+      cancelled_at: "",
+      cancelled_reason: "",
+    };
+    state.data.invoices.unshift(invoice);
+    state.data.invoice_items = invoiceItems.concat(state.data.invoice_items);
+    order.invoice_status = invoiceType === "PROFORMA_INVOICE" ? "PI_GENERATED" : invoiceType === "COMMERCIAL_INVOICE" ? "COMMERCIAL_GENERATED" : order.invoice_status;
+    order.updated_at = now;
+    writeLog(invoiceType === "COMMERCIAL_INVOICE" ? "CREATE_COMMERCIAL_INVOICE" : invoiceType === "CREDIT_NOTE" ? "CREATE_CREDIT_NOTE" : "CREATE_INVOICE", invoice.invoice_no, null, {
+      invoice_no: invoice.invoice_no,
+      order_no: order.order_no,
+      total_gross: invoice.total_gross,
+      invoice_type: invoice.invoice_type,
+    }, getCurrentOperator());
+    persistData();
+    state.ui.activeInvoiceId = invoice.id;
+    return invoice;
+  }
+
+  function buildInvoiceItemsFromOrderItems(invoiceId, orderItems, reverseChargeApplied) {
+    return orderItems.map((item, index) => {
+      const product = getProductById(item.product_id);
+      const category = normalizeProductCategory(product?.category || product?.product_series || "");
+      const isBundleItem = Boolean(item.is_bundle_item);
+      const isFreeOfCharge = Boolean(item.is_free_of_charge || isBundleItem);
+      const quantity = Math.max(0, Math.floor(toNumber(item.quantity, 0)));
+      const unitPrice = isFreeOfCharge ? 0 : roundMoney(item.unit_price_snapshot);
+      const netAmount = roundMoney(unitPrice * quantity);
+      const vatRate = reverseChargeApplied ? 0 : toRateInput(item.vat_rate_snapshot, 0);
+      const vatAmount = roundMoney(netAmount * vatRate);
+      const smvRate = SMV_RATES[category] || 0;
+      const descriptionBase = [product?.product_name || item.product_name || item.sku, product?.variant || ""].filter(Boolean).join(" ");
+      return {
+        id: buildId("invoice_item"),
+        invoice_item_id: "",
+        invoice_id: invoiceId,
+        order_item_id: item.id,
+        product_id: item.product_id,
+        sku: item.sku,
+        ean: product?.ean_13 || item.ean_13 || "",
+        product_name: item.product_name,
+        description: `${descriptionBase}${isFreeOfCharge ? ` ${tt("invoice.detail.bundleFreeOfChargeSuffix")}` : ""}`,
+        quantity,
+        unit: item.unit || CUSTOMER_QUOTATION_DEFAULT_UNIT,
+        unit_price_net: unitPrice,
+        net_amount: netAmount,
+        vat_rate: vatRate,
+        vat_amount: vatAmount,
+        total_amount: roundMoney(netAmount + vatAmount),
+        is_bundle_item: isBundleItem,
+        bundle_parent_sku: item.bundle_parent_sku || "",
+        is_free_of_charge: isFreeOfCharge,
+        smv_category: smvRate > 0 ? category : "",
+        smv_rate: smvRate,
+        smv_amount_included: smvRate > 0 ? roundMoney(smvRate * quantity) : 0,
+        sort_order: index + 1,
+      };
+    }).map((item) => ({ ...item, invoice_item_id: item.id }));
+  }
+
+  function resolveInvoiceVatRate(invoiceItems) {
+    const rates = Array.from(new Set(invoiceItems.filter((item) => toNumber(item.net_amount, 0) > 0).map((item) => toRateInput(item.vat_rate, 0))));
+    return rates.length === 1 ? rates[0] : rates[0] || 0;
+  }
+
+  function buildSmvNotes(invoiceItems) {
+    const categories = new Set(invoiceItems.map((item) => item.smv_category).filter(Boolean));
+    const notes = [];
+    if (categories.has("PHONE") || categories.has("TABLET")) {
+      notes.push(tt("invoice.notes.smvPhoneTablet"));
+    }
+    if (categories.has("SMARTWATCH")) {
+      notes.push(tt("invoice.notes.smvSmartwatch"));
+    }
+    return notes;
+  }
+
+  function renderInvoiceItemDescription(item) {
+    const rawDescription = String(item?.description || item?.product_name || item?.sku || "");
+    const baseDescription = rawDescription
+      .replace(/\s*\(Bundle item\s*[–-]\s*free of charge\)\s*$/i, "")
+      .replace(/\s*（Bundle item\s*[–-]\s*free of charge）\s*$/i, "")
+      .replace(/\s*\(Bundle-Artikel\s*[–-]\s*kostenlos\)\s*$/i, "");
+    return `${baseDescription}${item?.is_free_of_charge ? ` ${tt("invoice.detail.bundleFreeOfChargeSuffix")}` : ""}`;
+  }
+
+  function parsePaymentDays(paymentTerms, fallbackDays) {
+    const match = String(paymentTerms || "").match(/(\d+)/);
+    return match ? Math.max(1, Number(match[1])) : Math.max(1, Math.floor(toNumber(fallbackDays, 14)));
+  }
+
+  function addDaysToDateValue(dateValue, days) {
+    const date = new Date(`${dateValue}T00:00:00`);
+    date.setDate(date.getDate() + Math.max(0, Math.floor(toNumber(days, 0))));
+    return date.toISOString().slice(0, 10);
+  }
+
+  function buildInvoicePdfFilename(invoiceNo, customerName) {
+    return `${invoiceNo}_${slugifyFileName(customerName)}.pdf`;
+  }
+
+  function slugifyFileName(value) {
+    return String(value || "customer")
+      .trim()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "customer";
+  }
+
+  function renderInvoiceDetail() {
+    if (!dom.invoiceDetailContent) {
+      return;
+    }
+    const invoice = getInvoiceById(state.ui.activeInvoiceId) || getFilteredInvoices()[0] || null;
+    if (!invoice) {
+      dom.invoiceDetailContent.innerHTML = escapeHtml(tt("invoice.noDetail"));
+      return;
+    }
+    state.ui.activeInvoiceId = invoice.id;
+    const items = getInvoiceItems(invoice.id);
+    const settings = normalizeInvoiceSettings(state.data.invoice_settings);
+    const logs = state.data.logs.filter((log) => log.target_name === invoice.invoice_no).slice(0, 8);
+    dom.invoiceDetailContent.innerHTML = `
+      <div class="detail-block">
+        <div class="detail-grid">
+          ${buildDetailItem(tt("invoice.detail.sellerInfo"), formatSellerLines(settings).join("<br>"))}
+          ${buildDetailItem(tt("invoice.detail.customerInfo"), `${escapeHtml(renderBusinessName(invoice.customer_name))}<br>${escapeHtml(invoice.billing_address)}<br>VAT ID: ${escapeHtml(invoice.customer_vat_id)}<br>Email: ${escapeHtml(invoice.customer_email)}<br>Country: ${escapeHtml(invoice.customer_country)}`)}
+          ${buildDetailItem(tt("invoice.detail.invoiceInfo"), `${escapeHtml(invoice.invoice_no)}<br>${escapeHtml(renderInvoiceType(invoice.invoice_type))}<br>${escapeHtml(invoice.date_of_issue)} / ${escapeHtml(invoice.currency)}`)}
+          ${buildDetailItem(tt("invoice.detail.orderReference"), invoice.order_reference || invoice.order_no)}
+        </div>
+        <div class="table-wrap invoice-detail-table">
+          <table>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>${escapeHtml(tt("invoice.detail.description"))}</th>
+                <th>${escapeHtml(tt("customerPortal.products.quantity"))}</th>
+                <th>${escapeHtml(tt("invoice.detail.unitPriceNet"))}</th>
+                <th>${escapeHtml(tt("invoice.detail.netAmount"))}</th>
+                <th>${escapeHtml(tt("invoice.detail.bundleFoc"))}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.sku)}</td>
+                      <td>${escapeHtml(renderInvoiceItemDescription(item))}</td>
+                      <td>${escapeHtml(String(item.quantity))}</td>
+                      <td>${escapeHtml(formatMoney(item.unit_price_net))}</td>
+                      <td>${escapeHtml(formatMoney(item.net_amount))}</td>
+                      <td>${escapeHtml(item.is_free_of_charge ? tt("invoice.detail.freeOfCharge") : item.is_bundle_item ? tt("invoice.detail.bundle") : "-")}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+        <div class="detail-grid">
+          ${buildDetailItem(tt("invoice.detail.amountSummary"), `${escapeHtml(tt("invoice.table.subtotalNet"))}: ${escapeHtml(formatMoney(invoice.subtotal_net))}<br>VAT: ${escapeHtml(formatMoney(invoice.vat_amount))}<br>${escapeHtml(tt("invoice.table.totalGross"))}: ${escapeHtml(formatMoney(invoice.total_gross))}`)}
+          ${buildDetailItem(tt("invoice.detail.paymentInformation"), `${escapeHtml(tt("invoice.detail.bankName"))}: ${escapeHtml(settings.bank_name)}<br>${escapeHtml(tt("invoice.detail.accountHolder"))}: ${escapeHtml(settings.account_holder)}<br>IBAN: ${escapeHtml(settings.iban)}<br>BIC / SWIFT: ${escapeHtml(settings.bic_swift)}<br>${escapeHtml(tt("invoice.detail.paymentDueBy"))}: ${escapeHtml(invoice.due_date)}`)}
+          ${buildDetailItem(tt("invoice.detail.notes"), buildInvoiceNotes(invoice).map(escapeHtml).join("<br>"))}
+          ${buildDetailItem(tt("invoice.detail.operationLog"), logs.length ? logs.map((log) => `${escapeHtml(renderLogActionType(log.action_type))} / ${escapeHtml(log.operator_name)} / ${escapeHtml(formatDateTime(log.operated_at))}`).join("<br>") : "-")}
+        </div>
+      </div>
+    `;
+  }
+
+  function formatSellerLines(settings = normalizeInvoiceSettings(state.data.invoice_settings)) {
+    return [
+      settings.seller_company_name,
+      settings.seller_address_line_1,
+      settings.seller_address_line_2,
+      settings.seller_address_line_3,
+      `${tt("invoice.detail.commercialCourt")}: ${settings.commercial_court}`,
+      `${tt("invoice.detail.companyNo")}: ${settings.company_no}`,
+      `VAT ID: ${settings.vat_id}`,
+    ].filter(Boolean);
+  }
+
+  function buildInvoiceNotes(invoice) {
+    const notes = [];
+    if (invoice.reverse_charge_applied) {
+      notes.push(tt("invoice.notes.reverseCharge"));
+    }
+    if (invoice.smv_note_applied) {
+      notes.push(tt("invoice.notes.smvIntro"));
+      (invoice.smv_notes || []).forEach((note) => notes.push(`- ${note}`));
+    }
+    return notes.length ? notes : [tt("invoice.notes.noAdditional")];
+  }
+
+  function renderInvoiceType(invoiceType) {
+    const normalized = String(invoiceType || "").toUpperCase();
+    const translated = tt(`invoice.type.${normalized}`);
+    return isMissingI18n(translated) ? String(invoiceType || "-") : translated;
+  }
+
+  function onInvoiceReadyOrdersAction(event) {
+    const button = closestDataButton(event, "readyInvoiceAction");
+    if (!button) {
+      return;
+    }
+    if (button.dataset.readyInvoiceAction === "generate-pi") {
+      handleGenerateInvoiceFromOrder(button.dataset.orderId, "PROFORMA_INVOICE");
+    }
+  }
+
+  function onInvoicesTableAction(event) {
+    const button = closestDataButton(event, "invoiceAction");
+    if (!button) {
+      return;
+    }
+    const invoice = getInvoiceById(button.dataset.invoiceId);
+    if (!invoice) {
+      return;
+    }
+    const action = String(button.dataset.invoiceAction || "");
+    try {
+      if (action === "view") {
+        state.ui.activeInvoiceId = invoice.id;
+        renderInvoiceDetail();
+        return;
+      }
+      if (action === "download") {
+        downloadInvoicePdf(invoice.id, getCurrentOperator(), "GENERATE_INVOICE_PDF");
+        return;
+      }
+      if (action === "sent") {
+        updateInvoiceStatus(invoice, "SENT");
+        setAlert(dom.invoiceAlert, tt("invoice.message.sent", { invoiceNo: invoice.invoice_no }), "success");
+        return;
+      }
+      if (action === "paid") {
+        markInvoicePaymentStatus(invoice, "PAID");
+        setAlert(dom.invoiceAlert, tt("invoice.message.paid", { invoiceNo: invoice.invoice_no }), "success");
+        return;
+      }
+      if (action === "credit-term") {
+        markInvoicePaymentStatus(invoice, "CREDIT_TERM_CONFIRMED");
+        setAlert(dom.invoiceAlert, tt("invoice.message.creditTerm", { invoiceNo: invoice.invoice_no }), "success");
+        return;
+      }
+      if (action === "cancel") {
+        const reason = window.prompt(tt("invoice.prompt.cancelReason"));
+        if (!reason) {
+          return;
+        }
+        cancelInvoice(invoice, reason);
+        setAlert(dom.invoiceAlert, tt("invoice.message.cancelled", { invoiceNo: invoice.invoice_no }), "success");
+        return;
+      }
+      if (action === "commercial") {
+        handleGenerateInvoiceFromOrder(invoice.order_id, "COMMERCIAL_INVOICE");
+        return;
+      }
+      if (action === "credit-note") {
+        handleGenerateInvoiceFromOrder(invoice.order_id, "CREDIT_NOTE");
+      }
+    } catch (error) {
+      setAlert(dom.invoiceAlert, error instanceof Error ? error.message : tt("invoice.error.operationFailed"), "danger");
+    }
+  }
+
+  function handleGenerateInvoiceFromOrder(orderId, invoiceType) {
+    try {
+      const invoice = createInvoiceFromOrder(orderId, invoiceType);
+      renderAll();
+      setAlert(dom.invoiceAlert, tt("invoice.message.generated", { invoiceNo: invoice.invoice_no }), "success");
+    } catch (error) {
+      setAlert(dom.invoiceAlert || dom.orderAlert, error instanceof Error ? error.message : tt("invoice.error.generateFailed"), "danger");
+    }
+  }
+
+  function updateInvoiceStatus(invoice, invoiceStatus) {
+    const before = { invoice_status: invoice.invoice_status };
+    invoice.invoice_status = invoiceStatus;
+    invoice.updated_at = nowIso();
+    writeLog(invoiceStatus === "SENT" ? "SEND_INVOICE" : "UPDATE_INVOICE_STATUS", invoice.invoice_no, before, { invoice_status: invoice.invoice_status }, getCurrentOperator());
+    persistData();
+    renderAll();
+  }
+
+  function markInvoicePaymentStatus(invoice, paymentStatus) {
+    if (!canMarkInvoicePayment()) {
+      throw new Error(tt("validation.invoice.noPaymentPermission"));
+    }
+    const before = { payment_status: invoice.payment_status };
+    invoice.payment_status = paymentStatus;
+    invoice.invoice_status = paymentStatus === "PAID" ? "PAID" : invoice.invoice_status;
+    invoice.updated_at = nowIso();
+    const order = getOrderById(invoice.order_id);
+    if (order && ["PAID", "CREDIT_TERM_CONFIRMED"].includes(paymentStatus)) {
+      order.order_status = "PAYMENT_CONFIRMED";
+      order.updated_at = nowIso();
+    }
+    writeLog(paymentStatus === "CREDIT_TERM_CONFIRMED" ? "CONFIRM_CREDIT_TERM" : "MARK_INVOICE_PAID", invoice.invoice_no, before, {
+      payment_status: invoice.payment_status,
+      order_status: order?.order_status || "",
+    }, getCurrentOperator());
+    persistData();
+    renderAll();
+  }
+
+  function cancelInvoice(invoice, reason) {
+    if (!canCancelInvoice()) {
+      throw new Error(tt("validation.invoice.noCancelPermission"));
+    }
+    const before = { invoice_status: invoice.invoice_status, cancelled_reason: invoice.cancelled_reason };
+    invoice.invoice_status = "CANCELLED";
+    invoice.cancelled_at = nowIso();
+    invoice.cancelled_reason = String(reason || "").trim();
+    invoice.updated_at = nowIso();
+    writeLog("CANCEL_INVOICE", invoice.invoice_no, before, {
+      invoice_status: invoice.invoice_status,
+      cancelled_reason: invoice.cancelled_reason,
+    }, getCurrentOperator());
+    persistData();
+    renderAll();
+  }
+
+  function downloadInvoicePdf(invoiceId, operator = getCurrentOperator(), actionType = "DOWNLOAD_INVOICE") {
+    const invoice = getInvoiceById(invoiceId);
+    if (!invoice) {
+      throw new Error(tt("validation.invoice.notFound"));
+    }
+    const bundle = buildInvoicePdfBundle(invoice);
+    downloadBlobFile(bundle.filename, bundle.blob);
+    writeLog(actionType, invoice.invoice_no, null, {
+      invoice_no: invoice.invoice_no,
+      filename: bundle.filename,
+      total_gross: invoice.total_gross,
+    }, operator || buildVirtualOperator(tt("operator.customerDownload")));
+    persistData();
+  }
+
+  function buildInvoicePdfBundle(invoice) {
+    const settings = normalizeInvoiceSettings(state.data.invoice_settings);
+    const items = getInvoiceItems(invoice.id);
+    const sellerLines = formatSellerLines(settings);
+    const customerLines = [
+      renderBusinessName(invoice.customer_name),
+      `${tt("invoice.detail.companyNo")}: ${invoice.customer_company_no || "-"}`,
+      `${tt("invoice.detail.address")}: ${invoice.billing_address || "-"}`,
+      `VAT ID: ${invoice.customer_vat_id || "-"}`,
+      `${tt("invoice.detail.email")}: ${invoice.customer_email || "-"}`,
+      `${tt("invoice.detail.country")}: ${invoice.customer_country || "-"}`,
+    ];
+    const paymentLines = [
+      `${tt("invoice.detail.bankName")}: ${settings.bank_name}`,
+      `${tt("invoice.detail.accountHolder")}: ${settings.account_holder}`,
+      `IBAN: ${settings.iban}`,
+      `BIC / SWIFT: ${settings.bic_swift}`,
+      `${tt("invoice.detail.paymentDueBy")}: ${invoice.due_date}`,
+    ];
+    const notes = buildInvoiceNotes(invoice);
+    return buildPdfTableReport({
+      filename: invoice.pdf_url || buildInvoicePdfFilename(invoice.invoice_no, invoice.customer_name),
+      title: `${renderInvoiceType(invoice.invoice_type)} ${invoice.invoice_no}`,
+      subtitle: sellerLines.join(" | "),
+      highlightLabel: tt("invoice.table.totalGross"),
+      highlightValue: `${invoice.currency} ${formatMoney(invoice.total_gross)}`,
+      summaryCards: [
+        { label: tt("invoice.table.subtotalNet"), value: `${invoice.currency} ${formatMoney(invoice.subtotal_net)}` },
+        { label: "VAT", value: `${invoice.currency} ${formatMoney(invoice.vat_amount)}` },
+        { label: tt("invoice.table.currency"), value: invoice.currency },
+      ],
+      detailPairs: [
+        { label: tt("invoice.detail.sellerInfo"), value: sellerLines.join("\n") },
+        { label: tt("invoice.detail.customerInfo"), value: customerLines.filter(Boolean).join("\n") },
+        { label: tt("invoice.detail.invoiceInfo"), value: `${tt("invoice.table.invoiceNo")}: ${invoice.invoice_no}\n${tt("invoice.detail.orderReference")}: ${invoice.order_reference || invoice.order_no}\n${tt("invoice.table.dateOfIssue")}: ${invoice.date_of_issue}\n${tt("invoice.table.currency")}: ${invoice.currency}` },
+        { label: tt("invoice.detail.paymentInformation"), value: paymentLines.join("\n") },
+        { label: tt("invoice.detail.notes"), value: notes.join("\n") },
+      ],
+      tableHeaders: [tt("invoice.detail.description"), tt("customerPortal.products.quantity"), tt("invoice.detail.unitPriceNet"), `${tt("invoice.detail.netAmount")} (${invoice.currency})`],
+      tableRows: items.map((item) => [
+        renderInvoiceItemDescription(item),
+        String(Math.floor(toNumber(item.quantity, 0))),
+        formatMoney(item.unit_price_net),
+        formatMoney(item.net_amount),
+      ]),
+      columnRatios: [3.7, 0.75, 1.2, 1.2],
+      footerLines: [
+        settings.seller_company_name,
+        `VAT ID: ${settings.vat_id}`,
+        `${settings.bank_name} / ${settings.iban} / ${settings.bic_swift}`,
+      ],
+    });
+  }
+
+  function renderShipmentsPage() {
+    if (!dom.shipmentsTableBody) {
+      return;
+    }
+    const shipmentRows = state.data.shipments.map((shipment) => {
+      const order = getOrderById(shipment.order_id);
+      const customer = getCustomerById(shipment.customer_id);
+      return `
+        <tr>
+          <td>${escapeHtml(shipment.shipment_no)}</td>
+          <td>${escapeHtml(order?.order_no || "-")}</td>
+          <td>${escapeHtml(renderBusinessName(customer?.customer_name) || "-")}</td>
+          <td>${escapeHtml(shipment.warehouse || "-")}</td>
+          <td>${escapeHtml(shipment.carrier || "-")}</td>
+          <td>${escapeHtml(shipment.tracking_no || "-")}</td>
+          <td>${renderStatusBadge(shipment.shipment_status)}</td>
+          <td>${escapeHtml(formatDateTime(shipment.updated_at || shipment.created_at))}</td>
+        </tr>
+      `;
+    });
+    const readyRows = getCustomerOrders()
+      .filter((order) => canGenerateDeliveryInstruction(order))
+      .map((order) => {
+        const invoice = getPrimaryInvoiceForOrder(order.id);
+        return `
+          <tr>
+            <td><button class="btn btn-primary" type="button" data-shipment-action="create" data-order-id="${escapeHtml(order.id)}">${escapeHtml(tt("action.generateDeliveryInstruction"))}</button></td>
+            <td>${escapeHtml(order.order_no)}</td>
+            <td>${escapeHtml(renderBusinessName(order.customer_name))}</td>
+            <td>${escapeHtml(getOrderPrimaryWarehouse(order.id))}</td>
+            <td>-</td>
+            <td>${escapeHtml(invoice?.invoice_no || "-")}</td>
+            <td>${renderStatusBadge("READY_TO_SHIP")}</td>
+            <td>${escapeHtml(formatDateTime(order.updated_at || order.created_at))}</td>
+          </tr>
+        `;
+      });
+    dom.shipmentsTableBody.innerHTML = shipmentRows.concat(readyRows).join("") || `<tr><td colspan="8">${escapeHtml(tt("shipment.noData"))}</td></tr>`;
+  }
+
+  function canGenerateDeliveryInstruction(order) {
+    if (!order || ["SHIPPED", "COMPLETED"].includes(String(order.shipment_status || "").toUpperCase())) {
+      return false;
+    }
+    if (!["APPROVED", "PAYMENT_CONFIRMED"].includes(String(order.order_status || "").toUpperCase())) {
+      return false;
+    }
+    const invoice = getPrimaryInvoiceForOrder(order.id);
+    if (!invoice || !["GENERATED", "SENT", "PAID"].includes(String(invoice.invoice_status || "").toUpperCase())) {
+      return false;
+    }
+    return ["PAID", "CREDIT_TERM_CONFIRMED"].includes(String(invoice.payment_status || "").toUpperCase());
+  }
+
+  function getPrimaryInvoiceForOrder(orderId) {
+    return state.data.invoices.find((invoice) => invoice.order_id === orderId && invoice.invoice_status !== "CANCELLED" && ["PROFORMA_INVOICE", "COMMERCIAL_INVOICE"].includes(invoice.invoice_type)) || null;
+  }
+
+  function getOrderPrimaryWarehouse(orderId) {
+    const item = getOrderItems(orderId)[0];
+    const product = getProductById(item?.product_id);
+    return product?.default_warehouse || "Vienna DC";
+  }
+
+  function onShipmentsTableAction(event) {
+    const button = closestDataButton(event, "shipmentAction");
+    if (!button) {
+      return;
+    }
+    if (button.dataset.shipmentAction === "create") {
+      try {
+        createShipmentFromOrder(button.dataset.orderId);
+        renderAll();
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : tt("shipment.error.generateFailed"));
+      }
+    }
+  }
+
+  function createShipmentFromOrder(orderId) {
+    const order = getOrderById(orderId);
+    if (!canGenerateDeliveryInstruction(order)) {
+      throw new Error(tt("shipment.error.notReady"));
+    }
+    const invoice = getPrimaryInvoiceForOrder(order.id);
+    const customer = getCustomerById(order.customer_id);
+    const now = nowIso();
+    const shipment = {
+      id: buildId("shipment"),
+      shipment_id: "",
+      shipment_no: buildBusinessNo("SHP", state.data.shipments),
+      order_id: order.id,
+      invoice_id: invoice.id,
+      customer_id: customer.id,
+      warehouse: getOrderPrimaryWarehouse(order.id),
+      shipping_address: order.shipping_address || customer.delivery_address || customer.shipping_address || "",
+      carrier: "",
+      tracking_no: "",
+      shipment_status: "READY_TO_SHIP",
+      delivery_instruction_pdf_url: `${order.order_no}-delivery-instruction.pdf`,
+      packing_list_pdf_url: "",
+      created_at: now,
+      shipped_at: "",
+      completed_at: "",
+      updated_at: now,
+    };
+    shipment.shipment_id = shipment.id;
+    state.data.shipments.unshift(shipment);
+    order.shipment_status = "READY_TO_SHIP";
+    order.updated_at = now;
+    writeLog("CREATE_SHIPMENT", shipment.shipment_no, null, { order_no: order.order_no, invoice_no: invoice.invoice_no }, getCurrentOperator());
+    persistData();
+    return shipment;
+  }
+
   function renderOperatorOptions() {
     const current = getCurrentOperator();
     if (dom.currentAccountName) {
@@ -1238,17 +3489,40 @@
     if (dom.logoutBtn) {
       dom.logoutBtn.disabled = !current;
     }
+    if (dom.customerLogoutBtn) {
+      dom.customerLogoutBtn.disabled = !current;
+    }
+    if (dom.customerAccountChip) {
+      const customer = getCustomerById(current?.linked_customer_id);
+      dom.customerAccountChip.innerHTML = current
+        ? `
+          <span class="hint">${escapeHtml(renderBusinessName(customer?.customer_name) || tt("portal.customerAccount"))}</span>
+          <strong>${escapeHtml(current.display_name || current.user_name)}</strong>
+          <span class="hint">${escapeHtml(renderRoleLabel(current.role))}</span>
+        `
+        : "";
+    }
     syncLanguage();
   }
 
   function renderAuthPresentation() {
     const authenticated = isAuthenticated();
+    const customerPortal = authenticated && isCustomerOperator();
     dom.loginShell?.classList.toggle("role-hidden", authenticated);
-    dom.appShell?.classList.toggle("role-hidden", !authenticated);
+    dom.appShell?.classList.toggle("role-hidden", !authenticated || customerPortal);
+    dom.customerPortalShell?.classList.toggle("role-hidden", !customerPortal);
   }
 
   function isAuthenticated() {
     return Boolean(getCurrentOperator());
+  }
+
+  function isCustomerOperator(user = getCurrentOperator()) {
+    return Boolean(user && (String(user.account_type || "").toUpperCase() === "CUSTOMER" || CUSTOMER_ROLES.has(String(user.role || "").toUpperCase())));
+  }
+
+  function isInternalOperator(user = getCurrentOperator()) {
+    return Boolean(user && !isCustomerOperator(user) && INTERNAL_ROLES.has(String(user.role || "").toUpperCase()));
   }
 
   function isValidApplicantPassword(password) {
@@ -1266,6 +3540,13 @@
     if (user.status !== "ACTIVE") {
       setAlert(dom.loginAlert, tr("该账号当前不可用，请联系管理员。"), "warn");
       return;
+    }
+    if (isCustomerOperator(user)) {
+      const linkedCustomer = getCustomerById(user.linked_customer_id);
+      if (!user.portal_enabled || !linkedCustomer || !linkedCustomer.portal_enabled || linkedCustomer.customer_status === "SUSPENDED") {
+        setAlert(dom.loginAlert, tr("客户门户账号未启用或未绑定有效客户，请联系管理员。"), "danger");
+        return;
+      }
     }
     if (String(user.password || "") !== password) {
       setAlert(dom.loginAlert, tr("登录密码错误，请重新输入。"), "danger");
@@ -1293,78 +3574,210 @@
   }
 
   function onSubmitAccountRequest() {
-    const applicantName = String(dom.requestDisplayName?.value || "").trim();
-    const userName = String(dom.requestUserName?.value || "").trim().toLowerCase();
-    const password = String(dom.requestPassword?.value || "").trim();
-    const role = "SALES_ENTRY";
-    const position = "";
-    const team = String(dom.requestTeam?.value || "").trim();
-    const reason = String(dom.requestReason?.value || "").trim();
-    if (!applicantName || !userName || !password || !team || !reason) {
-      setAlert(dom.accountRequestAlert, tr("请完整填写申请人、申请账号、申请密码、团队和申请原因。"), "danger");
+    const fieldValue = (element) => String(element?.value || "").trim();
+    const companyName = fieldValue(dom.requestCompanyName);
+    const country = fieldValue(dom.requestCountryRegion);
+    const companyNo = fieldValue(dom.requestCompanyNo);
+    const vatId = fieldValue(dom.requestVatId);
+    const businessType = fieldValue(dom.requestBusinessType);
+    const channelType = fieldValue(dom.requestChannelType);
+    const registeredAddress = fieldValue(dom.requestRegisteredAddress);
+    const billingAddress = fieldValue(dom.requestBillingAddress);
+    const shippingAddress = fieldValue(dom.requestShippingAddress);
+    const invoiceEmail = fieldValue(dom.requestInvoiceEmail);
+    const deliveryContactName = fieldValue(dom.requestDeliveryContactName);
+    const deliveryContactPhone = fieldValue(dom.requestDeliveryContactPhone);
+    const contactName = fieldValue(dom.requestContactName);
+    const email = fieldValue(dom.requestEmail);
+    const phone = fieldValue(dom.requestPhone);
+    const productCategories = fieldValue(dom.requestProductCategories);
+    const monthlyVolume = fieldValue(dom.requestMonthlyVolume);
+    const targetSalesChannel = fieldValue(dom.requestTargetSalesChannel);
+    const reason = fieldValue(dom.requestReason);
+    if (
+      !companyName ||
+      !country ||
+      !companyNo ||
+      !vatId ||
+      !businessType ||
+      !channelType ||
+      !registeredAddress ||
+      !billingAddress ||
+      !shippingAddress ||
+      !invoiceEmail ||
+      !deliveryContactName ||
+      !deliveryContactPhone ||
+      !contactName ||
+      !email ||
+      !phone ||
+      !productCategories ||
+      !monthlyVolume ||
+      !targetSalesChannel ||
+      !reason ||
+      !dom.requestConfirmation?.checked
+    ) {
+      setAlert(dom.accountRequestAlert, tt("customer.registration.validationRequired"), "danger");
       return;
     }
-    if (!isValidApplicantPassword(password)) {
-      setAlert(dom.accountRequestAlert, tr("申请密码必须同时包含英文字母和数字，且只能使用英文字母与数字。"), "danger");
-      return;
-    }
-    if (getUserByUserName(userName)) {
-      setAlert(dom.accountRequestAlert, tr("该登录账号已存在，请更换申请账号。"), "warn");
-      return;
-    }
-    const pendingRequest = state.data.account_requests.find(
-      (item) => String(item.requested_user_name || "").toLowerCase() === userName && item.approval_status === "PENDING"
+    const pendingRequest = state.data.customer_requests.find(
+      (item) =>
+        item.approval_status === "IN_PROGRESS" &&
+        (String(item.proposed_customer?.vat_id || "").toLowerCase() === vatId.toLowerCase() ||
+          String(item.proposed_customer?.company_no || "").toLowerCase() === companyNo.toLowerCase())
     );
     if (pendingRequest) {
-      setAlert(dom.accountRequestAlert, tt("alerts.pendingAccountRequest", { requestNo: pendingRequest.request_no }), "warn");
+      setAlert(dom.accountRequestAlert, tt("alerts.customerPendingRequest", { customerCode: companyNo, requestNo: pendingRequest.request_no }), "warn");
+      return;
+    }
+    const existingCustomer = state.data.customers.find(
+      (customer) =>
+        String(customer.vat_id || "").toLowerCase() === vatId.toLowerCase() ||
+        String(customer.company_no || "").toLowerCase() === companyNo.toLowerCase()
+    );
+    if (existingCustomer) {
+      setAlert(dom.accountRequestAlert, tr("该客户主档已存在，请联系销售负责人开通门户账号。"), "warn");
       return;
     }
     const now = nowIso();
-    const request = {
-      id: buildId("account_request"),
-      request_no: buildBusinessNo("ARQ", state.data.account_requests),
-      applicant_name: applicantName,
-      requested_user_name: userName,
-      requested_password: password,
-      requested_role: role,
-      requested_position: position,
-      team,
-      reason,
-      approval_status: "PENDING",
-      generated_user_id: "",
-      generated_password: "",
-      approver_id: findPrimaryAdministratorUser()?.id || "",
-      approver_name: findPrimaryAdministratorUser()?.display_name || tr("管理员"),
-      approved_at: "",
+    const primaryAdmin = findPrimaryAdministratorUser();
+    const businessHead = findFirstUserByRole("BUSINESS_HEAD") || primaryAdmin;
+    const financeHead = findFirstUserByRole("FINANCE_HEAD") || primaryAdmin;
+    const customerCode = buildBusinessNo("CUST", state.data.customers.concat(state.data.customer_requests.map((item) => ({ customer_code: item.customer_code }))));
+    const proposedCustomer = {
+      id: "",
+      customer_name: companyName,
+      customer_code: customerCode,
+      formal_cooperation_date: getTodayValue(),
+      customer_level: "B",
+      customer_type: businessType,
+      channel_type: channelType,
+      region: country,
+      country,
+      company_no: companyNo,
+      vat_id: vatId,
+      website: fieldValue(dom.requestWebsite),
+      contact_name: contactName,
+      contact_title: fieldValue(dom.requestJobTitle),
+      phone,
+      email,
+      address: registeredAddress,
+      billing_address: billingAddress,
+      shipping_address: shippingAddress,
+      invoice_email: invoiceEmail,
+      delivery_contact_name: deliveryContactName,
+      delivery_contact_phone: deliveryContactPhone,
+      delivery_address: shippingAddress,
+      preferred_language: fieldValue(dom.requestPreferredLanguage) || getCurrentLanguage(),
+      interested_product_categories: productCategories,
+      expected_monthly_purchase_volume: monthlyVolume,
+      target_sales_channel: targetSalesChannel,
+      existing_oppo_cooperation: fieldValue(dom.requestExistingCooperation),
+      business_license_document: fieldValue(dom.requestBusinessLicense),
+      vat_certificate_document: fieldValue(dom.requestVatCertificate),
+      additional_documents: fieldValue(dom.requestAdditionalDocuments),
+      payment_terms: "NET 14",
+      credit_limit: 0,
+      credit_used: 0,
+      portal_enabled: false,
+      customer_status: "DRAFT",
+      reverse_charge_eligible: Boolean(vatId),
+      default_currency: "EUR",
+      default_db_rate: 0.0334,
+      default_customer_margin: 0.124,
+      default_service_fee: 0.0012,
+      default_mkt_funding: 0,
+      default_stk_buffer: 5,
+      default_front_margin: 0.005,
+      default_vat: 0.2,
+      default_ura: 5.5,
+      default_approver_id: businessHead?.id || "",
+      remark: reason,
+      status: "ACTIVE",
       created_at: now,
       updated_at: now,
     };
-    state.data.account_requests.unshift(request);
+    const request = {
+      id: buildId("customer_request"),
+      request_no: buildBusinessNo("CRQ", state.data.customer_requests),
+      request_type: "NEW_CUSTOMER",
+      target_customer_id: "",
+      customer_name: companyName,
+      customer_code: customerCode,
+      proposed_customer: proposedCustomer,
+      before_customer: null,
+      summary: `${tt("customer.registration.title")}；${companyName} / ${country} / ${vatId}`,
+      policy_snapshot: `${tt("customer.registration.fields.productCategories")}: ${productCategories} / ${tt("customer.registration.fields.monthlyVolume")}: ${monthlyVolume}`,
+      approval_status: "IN_PROGRESS",
+      request_status: "PENDING_APPROVAL",
+      current_node: 1,
+      current_node_name: tr("业务负责人审批"),
+      approver_id: businessHead?.id || "",
+      approver_name: businessHead?.display_name || tr("管理员"),
+      finance_cc_id: financeHead?.id || "",
+      finance_cc_name: financeHead?.display_name || "",
+      finance_cc_status: tr("待抄送"),
+      finance_copied_at: "",
+      initiated_by: "external_partner",
+      initiated_by_name: companyName,
+      initiated_at: now,
+      approved_at: "",
+      updated_at: now,
+      nodes: [
+        {
+          id: buildId("customer_request_node"),
+          node_order: 1,
+          node_name: tr("业务负责人审批"),
+          approver_id: businessHead?.id || "",
+          approver_name: businessHead?.display_name || tr("管理员"),
+          approval_status: "IN_PROGRESS",
+          approval_comment: "",
+          approved_at: "",
+        },
+      ],
+    };
+    state.data.customer_requests.unshift(request);
     writeLog(
-      "SUBMIT_ACCOUNT_REQUEST",
-      userName,
+      "SUBMIT_NEW_CUSTOMER_REQUEST",
+      companyNo,
       null,
-      { request_no: request.request_no, team: request.team },
-      buildVirtualOperator("访客申请")
+      { request_no: request.request_no, customer_name: companyName, vat_id: vatId },
+      buildVirtualOperator(tt("customer.registration.title"))
     );
     persistData();
-    if (dom.requestDisplayName) {
-      dom.requestDisplayName.value = "";
-    }
-    if (dom.requestUserName) {
-      dom.requestUserName.value = "";
-    }
-    if (dom.requestPassword) {
-      dom.requestPassword.value = "";
-    }
-    if (dom.requestTeam) {
-      dom.requestTeam.value = "";
-    }
-    if (dom.requestReason) {
-      dom.requestReason.value = "";
+    [
+      dom.requestCompanyName,
+      dom.requestCountryRegion,
+      dom.requestCompanyNo,
+      dom.requestVatId,
+      dom.requestWebsite,
+      dom.requestBusinessType,
+      dom.requestChannelType,
+      dom.requestRegisteredAddress,
+      dom.requestBillingAddress,
+      dom.requestShippingAddress,
+      dom.requestInvoiceEmail,
+      dom.requestDeliveryContactName,
+      dom.requestDeliveryContactPhone,
+      dom.requestContactName,
+      dom.requestJobTitle,
+      dom.requestEmail,
+      dom.requestPhone,
+      dom.requestProductCategories,
+      dom.requestMonthlyVolume,
+      dom.requestTargetSalesChannel,
+      dom.requestExistingCooperation,
+      dom.requestReason,
+      dom.requestBusinessLicense,
+      dom.requestVatCertificate,
+      dom.requestAdditionalDocuments,
+    ].forEach((input) => {
+      if (input) input.value = "";
+    });
+    if (dom.requestConfirmation) {
+      dom.requestConfirmation.checked = false;
     }
     renderAll();
-    setAlert(dom.accountRequestAlert, tt("alerts.accountRequestSubmitted", { requestNo: request.request_no }), "success");
+    setAlert(dom.accountRequestAlert, tt("customer.registration.success", { requestNo: request.request_no }), "success");
   }
 
   function renderMasterOptions() {
@@ -1373,6 +3786,7 @@
     renderProductFormulaOptions();
     renderCustomerApproverOptions();
     renderCustomerBaseOptions();
+    renderAccountCustomerOptions();
   }
 
   function renderQuoteQueryOptions() {
@@ -1473,6 +3887,16 @@
     });
     const allowed = getActiveCustomers().some((item) => item.id === previous);
     dom.customerBaseCustomerId.value = allowed ? previous : "";
+  }
+
+  function renderAccountCustomerOptions() {
+    populateChoiceOptions(
+      dom.accountLinkedCustomerId,
+      getActiveCustomers()
+        .filter((customer) => Boolean(customer.portal_enabled))
+        .map((customer) => ({ value: customer.id, label: `${customer.customer_name} / ${customer.customer_code}` })),
+      tr("请选择绑定客户")
+    );
   }
 
   function populateSelectOptions(select, items, valueKey, labelBuilder) {
@@ -1797,6 +4221,739 @@
       can_save: errors.length === 0,
       expression,
     };
+  }
+
+  function getCustomerPrice(customerId, productId, quantity = 1) {
+    const customer = getCustomerById(customerId);
+    const product = getProductById(productId);
+    if (!customer || !product) {
+      return {
+        ok: false,
+        can_order: false,
+        message: "Customer or product is not available.",
+        unit_price: 0,
+        currency: CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+        vat_rate: 0,
+        valid_until: "",
+      };
+    }
+    const formula = selectBestFormula(customer, product);
+    if (!formula) {
+      return {
+        ok: false,
+        can_order: false,
+        message: "No active pricing formula is available.",
+        unit_price: 0,
+        currency: customer.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+        vat_rate: customer.default_vat || 0,
+        valid_until: "",
+      };
+    }
+    const moq = getProductMoq(product);
+    const normalizedQuantity = Math.max(moq, Math.floor(toNumber(quantity, moq)));
+    const payload = {
+      customer_id: customer.id,
+      product_id: product.id,
+      formula_id: formula.id,
+      effective_month: getCurrentMonthValue(),
+      quantity: normalizedQuantity,
+      unit: CUSTOMER_QUOTATION_DEFAULT_UNIT,
+      msrp: roundMoney(product.default_msrp || 0),
+      cost_price: roundMoney(product.default_cost || 0),
+      db_rate: toRateInput(customer.default_db_rate, 0),
+      customer_margin: toRateInput(customer.default_customer_margin, 0),
+      service_fee: toRateInput(customer.default_service_fee, 0),
+      mkt_funding: roundMoney(customer.default_mkt_funding ?? 0),
+      stk_buffer: roundMoney(customer.default_stk_buffer ?? 0),
+      front_margin: toRateInput(customer.default_front_margin, 0),
+      vat: toRateInput(customer.default_vat, 0.2),
+      ura: roundMoney(customer.default_ura ?? 0),
+      remark: "CUSTOMER_PORTAL_PRICE_PREVIEW",
+    };
+    const calculation = calculateQuote(payload, formula);
+    const validUntil = getPriceValidUntil();
+    const snapshot = {
+      customer_id: customer.id,
+      product_id: product.id,
+      sku: product.sku,
+      quantity: normalizedQuantity,
+      unit_price: calculation.final_quote_price,
+      currency: customer.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+      vat_rate: payload.vat,
+      formula_id: formula.id,
+      formula_version: formula.formula_version,
+      formula_expression: formula.formula_expression,
+      price_source: "PRICING_ENGINE",
+      calculated_at: nowIso(),
+      valid_until: validUntil,
+      calculation,
+    };
+    return {
+      ok: calculation.can_save,
+      can_order: calculation.can_save,
+      message: calculation.error_messages[0] || calculation.warning_messages[0] || "Price calculated.",
+      unit_price: calculation.final_quote_price,
+      currency: customer.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+      vat_rate: payload.vat,
+      valid_until: validUntil,
+      formula_id: formula.id,
+      formula_version: formula.formula_version,
+      quotation_rule_id: formula.formula_code,
+      approval_required: true,
+      min_order_quantity: moq,
+      price_source: "PRICING_ENGINE",
+      normalized_quantity: normalizedQuantity,
+      calculation,
+      payload,
+      price_snapshot_json: snapshot,
+    };
+  }
+
+  function previewCustomerPrice(customerId, productId, quantity) {
+    return getCustomerPrice(customerId, productId, quantity);
+  }
+
+  function createQuotation(customerId, items, source = "CUSTOMER_PORTAL") {
+    const customer = getCustomerById(customerId);
+    if (!customer) {
+      throw new Error("客户不存在，无法创建报价快照。");
+    }
+    const now = nowIso();
+    const quotation = {
+      id: buildId("quotation"),
+      quotation_no: buildBusinessNo("OQT", state.data.order_quotations),
+      quotation_status: "DRAFT",
+      customer_id: customer.id,
+      source,
+      valid_until: getPriceValidUntil(),
+      converted_order_id: "",
+      locked_at: "",
+      locked_by: "",
+      price_snapshot_json: {
+        customer_id: customer.id,
+        customer_name: customer.customer_name,
+        source,
+        items: items.map((item) => item.price_snapshot_json || item),
+      },
+      created_at: now,
+      updated_at: now,
+    };
+    state.data.order_quotations.unshift(quotation);
+    writeLog("CREATE_QUOTATION", quotation.quotation_no, null, { customer_id: customer.id, source, item_count: items.length }, getCurrentOperator() || buildVirtualOperator("系统"));
+    return quotation;
+  }
+
+  function lockQuotation(quotationId, orderId, operator = getCurrentOperator()) {
+    const quotation = state.data.order_quotations.find((item) => item.id === quotationId);
+    if (!quotation) {
+      throw new Error("报价快照不存在，无法锁定。");
+    }
+    quotation.quotation_status = "LOCKED";
+    quotation.converted_order_id = orderId;
+    quotation.locked_at = nowIso();
+    quotation.locked_by = operator?.id || "system";
+    quotation.updated_at = nowIso();
+    writeLog("LOCK_QUOTATION", quotation.quotation_no, null, { order_id: orderId, status: "LOCKED" }, operator || buildVirtualOperator("系统"));
+    return quotation;
+  }
+
+  function getPriceValidUntil(referenceDate = new Date()) {
+    const date = new Date(referenceDate);
+    date.setDate(date.getDate() + 14);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function getPortalProducts() {
+    return getActiveProducts().filter((product) => {
+      const salesStatus = String(product.sales_status || product.status || "").toUpperCase();
+      return Boolean(product.is_sellable) && Boolean(product.available_for_portal) && ["ACTIVE", "CLEARANCE"].includes(salesStatus);
+    });
+  }
+
+  function getProductMoq(product) {
+    return Math.max(1, Math.floor(toNumber(product?.min_order_quantity, 1)));
+  }
+
+  function getCurrentCustomerCartItems() {
+    const customer = getCurrentCustomer();
+    if (!customer) {
+      return [];
+    }
+    return state.data.customer_carts
+      .filter((item) => item.customer_id === customer.id)
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
+  }
+
+  function addCustomerProductToCart(productId, quantity) {
+    const customer = getCurrentCustomer();
+    const product = getProductById(productId);
+    const operator = getCurrentOperator();
+    if (!customer || !product) {
+      throw new Error("客户或产品不存在。");
+    }
+    if (!canCustomerSubmitOrders(operator)) {
+      throw new Error("当前客户账号为只读角色，不能加入购物车。");
+    }
+    const moq = getProductMoq(product);
+    const normalizedQuantity = Math.max(moq, Math.floor(toNumber(quantity, moq)));
+    const inventory = getSellableInventory(product.id);
+    if (inventory.available_stock < normalizedQuantity) {
+      throw new Error("可销售库存不足，请减少数量。");
+    }
+    const price = getCustomerPrice(customer.id, product.id, normalizedQuantity);
+    if (!price.can_order) {
+      throw new Error(price.message || "价格不可用。");
+    }
+    const now = nowIso();
+    const existing = state.data.customer_carts.find((item) => item.customer_id === customer.id && item.product_id === product.id);
+    const nextItem = {
+      id: existing?.id || buildId("cart"),
+      customer_id: customer.id,
+      product_id: product.id,
+      sku: product.sku,
+      product_name: product.product_name,
+      quantity: normalizedQuantity,
+      unit_price: price.unit_price,
+      currency: price.currency,
+      vat_rate: price.vat_rate,
+      subtotal: roundMoney(price.unit_price * normalizedQuantity),
+      available_stock: inventory.available_stock,
+      price_valid_until: price.valid_until,
+      quotation_id: "",
+      min_order_quantity: price.min_order_quantity,
+      price_snapshot_json: price.price_snapshot_json,
+      created_at: existing?.created_at || now,
+      updated_at: now,
+    };
+    if (existing) {
+      replaceItem(state.data.customer_carts, existing.id, nextItem);
+    } else {
+      state.data.customer_carts.unshift(nextItem);
+    }
+    writeLog("VIEW_PRICE", product.sku, null, { customer_id: customer.id, unit_price: price.unit_price, quantity: normalizedQuantity }, operator);
+    persistData();
+    return nextItem;
+  }
+
+  function updateCustomerCartQuantity(cartItemId, quantity) {
+    const item = state.data.customer_carts.find((cartItem) => cartItem.id === cartItemId);
+    const customer = getCurrentCustomer();
+    if (!item || !customer || item.customer_id !== customer.id) {
+      throw new Error("购物车明细不存在。");
+    }
+    const updated = addCustomerProductToCart(item.product_id, quantity);
+    updated.id = item.id;
+    replaceItem(state.data.customer_carts, item.id, updated);
+    persistData();
+    return updated;
+  }
+
+  function removeCustomerCartItem(cartItemId) {
+    const customer = getCurrentCustomer();
+    const item = state.data.customer_carts.find((cartItem) => cartItem.id === cartItemId);
+    if (!item || !customer || item.customer_id !== customer.id) {
+      return;
+    }
+    removeItem(state.data.customer_carts, cartItemId);
+    persistData();
+  }
+
+  function submitCustomerOrder() {
+    const operator = getCurrentOperator();
+    const customer = getCurrentCustomer();
+    if (!customer) {
+      throw new Error("客户门户账号未绑定客户。");
+    }
+    if (!canCustomerSubmitOrders(operator)) {
+      throw new Error("当前客户账号为只读角色，不能提交订单。");
+    }
+    const cartItems = getCurrentCustomerCartItems();
+    if (cartItems.length === 0) {
+      throw new Error("购物车为空。");
+    }
+
+    const revalidatedItems = cartItems.map((item) => revalidateCartItem(customer, item));
+    const changedItem = revalidatedItems.find((item) => item.price_changed);
+    if (changedItem) {
+      throw new Error(`${changedItem.sku} 价格已变化，请先更新购物车价格。`);
+    }
+    const shortageItem = revalidatedItems.find((item) => item.stock_shortage);
+    if (shortageItem) {
+      throw new Error(`${shortageItem.sku} 可销售库存不足，请减少数量。`);
+    }
+
+    const quotation = createQuotation(customer.id, revalidatedItems, "CUSTOMER_PORTAL");
+    const now = nowIso();
+    const totals = calculateOrderTotals(revalidatedItems, customer.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY);
+    const order = {
+      id: buildId("order"),
+      order_id: "",
+      order_no: buildBusinessNo("ORD", state.data.orders),
+      customer_id: customer.id,
+      customer_name: customer.customer_name,
+      quotation_id: quotation.id,
+      order_status: "PENDING_APPROVAL",
+      approval_status: "IN_PROGRESS",
+      invoice_status: "NOT_GENERATED",
+      shipment_status: "PENDING",
+      subtotal: totals.subtotal,
+      vat_amount: totals.vat_amount,
+      total_amount: totals.total_amount,
+      currency: totals.currency,
+      payment_terms: customer.payment_terms || "PREPAID",
+      shipping_address: customer.delivery_address || customer.shipping_address || customer.address || "",
+      billing_address: customer.billing_address || customer.address || "",
+      created_by: operator.id,
+      created_by_name: operator.display_name,
+      created_at: now,
+      approved_by: "",
+      approved_at: "",
+      rejected_reason: "",
+      updated_at: now,
+    };
+    order.order_id = order.id;
+    state.data.orders.unshift(order);
+    lockQuotation(quotation.id, order.id, operator);
+
+    revalidatedItems.forEach((item) => {
+      const orderItem = buildOrderItemFromCart(order, quotation, item);
+      state.data.order_items.unshift(orderItem);
+      const lock = createInventoryLock(order, orderItem, "RESERVED");
+      orderItem.inventory_lock_id = lock.id;
+    });
+    const approval = buildApprovalForOrder(order, customer, operator);
+    state.data.approvals.unshift(approval);
+    state.data.customer_carts = state.data.customer_carts.filter((item) => item.customer_id !== customer.id);
+    writeLog("CREATE_ORDER", order.order_no, null, { customer_id: customer.id, total_amount: order.total_amount, quotation_id: quotation.id }, operator);
+    persistData();
+    return order;
+  }
+
+  function revalidateCartItem(customer, item) {
+    const price = getCustomerPrice(customer.id, item.product_id, item.quantity);
+    const inventory = getSellableInventory(item.product_id);
+    return {
+      ...item,
+      unit_price: price.unit_price,
+      currency: price.currency,
+      vat_rate: price.vat_rate,
+      subtotal: roundMoney(price.unit_price * item.quantity),
+      available_stock: inventory.available_stock,
+      price_valid_until: price.valid_until,
+      price_snapshot_json: price.price_snapshot_json,
+      price_changed: roundMoney(price.unit_price) !== roundMoney(item.unit_price),
+      stock_shortage: inventory.available_stock < item.quantity,
+      formula_version_snapshot: price.formula_version,
+    };
+  }
+
+  function calculateCartTotals(items) {
+    const customer = getCurrentCustomer();
+    return calculateOrderTotals(items, customer?.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY);
+  }
+
+  function calculateOrderTotals(items, currency = CUSTOMER_QUOTATION_DEFAULT_CURRENCY) {
+    const subtotal = roundMoney((items || []).reduce((sum, item) => sum + toNumber(item.subtotal, 0), 0));
+    const vatAmount = roundMoney((items || []).reduce((sum, item) => sum + toNumber(item.subtotal, 0) * toRateInput(item.vat_rate, 0), 0));
+    return {
+      subtotal,
+      vat_amount: vatAmount,
+      total_amount: roundMoney(subtotal + vatAmount),
+      currency,
+    };
+  }
+
+  function buildOrderItemFromCart(order, quotation, cartItem) {
+    const product = getProductById(cartItem.product_id);
+    const id = buildId("order_item");
+    return {
+      id,
+      order_item_id: id,
+      order_id: order.id,
+      product_id: cartItem.product_id,
+      sku: cartItem.sku,
+      product_name: cartItem.product_name,
+      quantity: cartItem.quantity,
+      unit: CUSTOMER_QUOTATION_DEFAULT_UNIT,
+      unit_price_snapshot: cartItem.unit_price,
+      vat_rate_snapshot: cartItem.vat_rate,
+      subtotal: cartItem.subtotal,
+      formula_version_snapshot: cartItem.formula_version_snapshot || cartItem.price_snapshot_json?.formula_version || "",
+      quotation_id: quotation.id,
+      price_snapshot_json: cartItem.price_snapshot_json,
+      inventory_lock_id: "",
+      ean_13: product?.ean_13 || "",
+      carton_qty: product?.carton_qty || product?.units_per_carton || "",
+      created_at: nowIso(),
+    };
+  }
+
+  function buildApprovalForOrder(order, customer, operator) {
+    const primaryAdmin = findPrimaryAdministratorUser();
+    const salesManager = getUserById(customer.default_approver_id) || findFirstUserByRole("SALES_MANAGER") || primaryAdmin;
+    const financeHead = findFirstUserByRole("FINANCE_HEAD") || primaryAdmin;
+    const nodes = [salesManager, financeHead].map((approver, index) => ({
+      id: buildId("approval_node"),
+      node_order: index + 1,
+      node_name: index === 0 ? "订单负责人审批" : "财务信用审批",
+      approver_id: approver?.id || "",
+      approver_name: approver?.display_name || "待配置审批人",
+      approval_status: index === 0 ? "IN_PROGRESS" : "PENDING",
+      approval_comment: "",
+      approved_at: "",
+    }));
+    return {
+      id: buildId("approval"),
+      approval_no: buildBusinessNo("APR", state.data.approvals),
+      scope: "order",
+      approval_type: "ORDER_APPROVAL",
+      order_id: order.id,
+      order_no: order.order_no,
+      quote_id: "",
+      quote_no: "",
+      customer_name: customer.customer_name,
+      sku: renderOrderItemSummary(order.id),
+      product_name: "Customer portal order",
+      current_node: 1,
+      current_node_name: nodes[0]?.node_name || "",
+      approver_id: nodes[0]?.approver_id || "",
+      approver_name: nodes[0]?.approver_name || "",
+      approval_status: "IN_PROGRESS",
+      initiated_by: operator.id,
+      initiated_by_name: operator.display_name,
+      initiated_at: nowIso(),
+      approved_at: "",
+      updated_at: nowIso(),
+      nodes,
+    };
+  }
+
+  function createInventoryLock(order, orderItem, lockStatus = "RESERVED") {
+    const inventory = getInventoryByProductId(orderItem.product_id);
+    if (!inventory) {
+      throw new Error(`${orderItem.sku} 未配置库存。`);
+    }
+    if (inventory.available_stock < orderItem.quantity) {
+      throw new Error(`${orderItem.sku} 可销售库存不足。`);
+    }
+    const lock = {
+      id: buildId("inventory_lock"),
+      lock_id: "",
+      order_id: order.id,
+      order_item_id: orderItem.id,
+      sku: orderItem.sku,
+      quantity: orderItem.quantity,
+      lock_status: lockStatus,
+      locked_at: nowIso(),
+      released_at: "",
+    };
+    lock.lock_id = lock.id;
+    state.data.inventory_locks.unshift(lock);
+    inventory.reserved_stock = Math.max(0, toNumber(inventory.reserved_stock, 0) + orderItem.quantity);
+    recalculateInventory(inventory);
+    writeLog("LOCK_INVENTORY", orderItem.sku, null, { order_no: order.order_no, quantity: orderItem.quantity, lock_status: lockStatus }, getCurrentOperator());
+    return lock;
+  }
+
+  function approveOrderApproval(approval, operator, comment = "") {
+    const order = getOrderById(approval?.order_id);
+    if (!approval || !order) {
+      return;
+    }
+    const currentNode = approval.nodes.find((item) => item.node_order === approval.current_node);
+    const now = nowIso();
+    currentNode.approval_status = "APPROVED";
+    currentNode.approval_comment = comment || "订单审批通过";
+    currentNode.approved_at = now;
+    const nextNode = approval.nodes.find((item) => item.node_order === approval.current_node + 1);
+    if (nextNode) {
+      nextNode.approval_status = "IN_PROGRESS";
+      approval.current_node = nextNode.node_order;
+      approval.current_node_name = nextNode.node_name;
+      approval.approver_id = nextNode.approver_id;
+      approval.approver_name = nextNode.approver_name;
+      approval.updated_at = now;
+      return;
+    }
+    approval.approval_status = "APPROVED";
+    approval.approved_at = now;
+    approval.current_node_name = "审批完成";
+    approval.approver_id = "";
+    approval.approver_name = "";
+    approval.updated_at = now;
+    order.order_status = "APPROVED";
+    order.approval_status = "APPROVED";
+    order.approved_by = operator.id;
+    order.approved_at = now;
+    order.updated_at = now;
+    promoteOrderInventoryLocks(order.id);
+    writeLog("APPROVE_ORDER", order.order_no, null, { order_status: order.order_status, total_amount: order.total_amount }, operator);
+  }
+
+  function rejectOrderApproval(approval, operator, comment = "") {
+    const order = getOrderById(approval?.order_id);
+    if (!approval || !order) {
+      return;
+    }
+    const currentNode = approval.nodes.find((item) => item.node_order === approval.current_node);
+    const now = nowIso();
+    if (currentNode) {
+      currentNode.approval_status = "REJECTED";
+      currentNode.approval_comment = comment || "订单审批驳回";
+      currentNode.approved_at = now;
+    }
+    approval.approval_status = "REJECTED";
+    approval.updated_at = now;
+    order.order_status = "REJECTED";
+    order.approval_status = "REJECTED";
+    order.rejected_reason = comment || "订单审批驳回";
+    order.updated_at = now;
+    releaseOrderInventoryLocks(order.id);
+    writeLog("REJECT_ORDER", order.order_no, null, { order_status: order.order_status, rejected_reason: order.rejected_reason }, operator);
+  }
+
+  function getSellableInventory(productId) {
+    const inventory = getInventoryByProductId(productId);
+    if (!inventory) {
+      return { available_stock: 0, warehouse: "" };
+    }
+    recalculateInventory(inventory);
+    return {
+      available_stock: inventory.available_stock,
+      warehouse: inventory.warehouse,
+    };
+  }
+
+  function getInventoryByProductId(productId) {
+    const product = getProductById(productId);
+    return (
+      state.data.inventory.find((item) => item.product_id === productId) ||
+      state.data.inventory.find((item) => item.sku === product?.sku) ||
+      null
+    );
+  }
+
+  function recalculateInventory(inventory) {
+    if (!inventory) {
+      return null;
+    }
+    inventory.total_stock = Math.max(0, Math.floor(toNumber(inventory.total_stock, 0)));
+    inventory.reserved_stock = Math.max(0, Math.floor(toNumber(inventory.reserved_stock, 0)));
+    inventory.locked_stock = Math.max(0, Math.floor(toNumber(inventory.locked_stock, 0)));
+    inventory.safety_stock = Math.max(0, Math.floor(toNumber(inventory.safety_stock, 0)));
+    inventory.available_stock = Math.max(0, inventory.total_stock - inventory.reserved_stock - inventory.locked_stock - inventory.safety_stock);
+    inventory.updated_at = nowIso();
+    return inventory;
+  }
+
+  function promoteOrderInventoryLocks(orderId) {
+    state.data.inventory_locks
+      .filter((lock) => lock.order_id === orderId && lock.lock_status === "RESERVED")
+      .forEach((lock) => {
+        const inventory = state.data.inventory.find((item) => item.sku === lock.sku);
+        if (inventory) {
+          inventory.reserved_stock = Math.max(0, toNumber(inventory.reserved_stock, 0) - lock.quantity);
+          inventory.locked_stock = Math.max(0, toNumber(inventory.locked_stock, 0) + lock.quantity);
+          recalculateInventory(inventory);
+        }
+        lock.lock_status = "LOCKED";
+      });
+  }
+
+  function releaseOrderInventoryLocks(orderId) {
+    state.data.inventory_locks
+      .filter((lock) => lock.order_id === orderId && ["RESERVED", "LOCKED"].includes(String(lock.lock_status || "").toUpperCase()))
+      .forEach((lock) => {
+        const inventory = state.data.inventory.find((item) => item.sku === lock.sku);
+        if (inventory) {
+          if (lock.lock_status === "RESERVED") {
+            inventory.reserved_stock = Math.max(0, toNumber(inventory.reserved_stock, 0) - lock.quantity);
+          }
+          if (lock.lock_status === "LOCKED") {
+            inventory.locked_stock = Math.max(0, toNumber(inventory.locked_stock, 0) - lock.quantity);
+          }
+          recalculateInventory(inventory);
+        }
+        lock.lock_status = "RELEASED";
+        lock.released_at = nowIso();
+        writeLog("RELEASE_INVENTORY", lock.sku, null, { order_id: orderId, quantity: lock.quantity }, getCurrentOperator());
+      });
+  }
+
+  function renderCustomerStockLabel(customer, availableStock) {
+    if (String(customer?.customer_level || "").toUpperCase() === "A") {
+      return tt("customerPortal.products.availableStockExact", { count: availableStock });
+    }
+    if (availableStock <= 0) {
+      return tt("customerPortal.products.outOfStock");
+    }
+    if (availableStock <= INVENTORY_LOW_STOCK_THRESHOLD) {
+      return tt("customerPortal.products.limitedStock");
+    }
+    return tt("customerPortal.products.inStock");
+  }
+
+  function formatCurrencyAmount(value, currency = CUSTOMER_QUOTATION_DEFAULT_CURRENCY) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) {
+      return "--";
+    }
+    return `${currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY} ${amount.toLocaleString(getNumberLocale(), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  function getCustomerOrders(customerId) {
+    return state.data.orders
+      .filter((order) => !customerId || order.customer_id === customerId)
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at), "zh-CN"));
+  }
+
+  function getOrderById(id) {
+    return state.data.orders.find((item) => item.id === id || item.order_id === id) || null;
+  }
+
+  function getOrderItems(orderId) {
+    return state.data.order_items.filter((item) => item.order_id === orderId);
+  }
+
+  function renderOrderItemSummary(orderId) {
+    const items = getOrderItems(orderId);
+    if (items.length === 0) {
+      return "-";
+    }
+    const first = items[0];
+    const suffix = items.length > 1 ? ` +${items.length - 1}` : "";
+    return `${first.sku} x ${first.quantity}${suffix}`;
+  }
+
+  function renderSimpleInvoiceTable(invoices) {
+    if (!invoices.length) {
+      return `<div class="detail-placeholder">No invoices yet.</div>`;
+    }
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Invoice No.</th><th>Order No.</th><th>Total</th><th>Status</th><th>Payment</th></tr></thead>
+          <tbody>
+            ${invoices
+              .map(
+                (invoice) => `
+                  <tr>
+                    <td>${escapeHtml(invoice.invoice_no)}</td>
+                    <td>${escapeHtml(getOrderById(invoice.order_id)?.order_no || "-")}</td>
+                    <td>${escapeHtml(formatCurrencyAmount(invoice.total_amount, invoice.currency))}</td>
+                    <td>${renderStatusBadge(invoice.invoice_status)}</td>
+                    <td>${renderStatusBadge(invoice.payment_status)}</td>
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderSimpleShipmentTable(shipments) {
+    if (!shipments.length) {
+      return `<div class="detail-placeholder">${escapeHtml(tt("empty.noShipments"))}</div>`;
+    }
+    return `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>${escapeHtml(tt("shipment.table.shipmentNo"))}</th><th>${escapeHtml(tt("order.table.orderNo"))}</th><th>${escapeHtml(tt("shipment.table.carrier"))}</th><th>${escapeHtml(tt("shipment.table.trackingNo"))}</th><th>${escapeHtml(tt("order.table.status"))}</th></tr></thead>
+          <tbody>
+            ${shipments
+              .map(
+                (shipment) => `
+                  <tr>
+                    <td>${escapeHtml(shipment.shipment_no)}</td>
+                    <td>${escapeHtml(getOrderById(shipment.order_id)?.order_no || "-")}</td>
+                    <td>${escapeHtml(shipment.carrier || "-")}</td>
+                    <td>${escapeHtml(shipment.tracking_no || "-")}</td>
+                    <td>${renderStatusBadge(shipment.shipment_status)}</td>
+                  </tr>
+                `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function onCustomerPortalChange(event) {
+    const target = normalizeEventTarget(event);
+    if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) {
+      return;
+    }
+    const productId = String(target.dataset.customerQtyProductId || "");
+    if (productId) {
+      state.ui.customerProductQuantities[productId] = Math.max(1, Math.floor(toNumber(target.value, 1)));
+    }
+    const invoiceFilter = String(target.dataset.customerInvoiceFilter || "");
+    if (invoiceFilter) {
+      state.ui.customerInvoiceFilters[invoiceFilter] = String(target.value || "").trim();
+      renderCustomerInvoicesPage();
+    }
+  }
+
+  function onCustomerPortalAction(event) {
+    const button = closestDataButton(event, "customerAction");
+    if (!button) {
+      return;
+    }
+    const action = String(button.dataset.customerAction || "");
+    const productAlert = document.getElementById("customerProductAlert");
+    const cartAlert = document.getElementById("customerCartAlert");
+    try {
+      if (action === "add-to-cart") {
+        const productId = String(button.dataset.productId || "");
+        const quantityInput = Array.from(document.querySelectorAll("[data-customer-qty-product-id]")).find((input) => input.dataset.customerQtyProductId === productId);
+        const product = getProductById(productId);
+        const quantity = toNumber(quantityInput?.value, getProductMoq(product));
+        addCustomerProductToCart(productId, quantity);
+        renderCustomerPortal();
+        setAlert(document.getElementById("customerProductAlert"), tt("message.addedToCart"), "success");
+        return;
+      }
+      if (action === "update-cart") {
+        const cartItemId = String(button.dataset.cartItemId || "");
+        const quantityInput = Array.from(document.querySelectorAll("[data-cart-qty-id]")).find((input) => input.dataset.cartQtyId === cartItemId);
+        updateCustomerCartQuantity(cartItemId, toNumber(quantityInput?.value, 1));
+        renderCustomerPortal();
+        setAlert(document.getElementById("customerCartAlert"), tt("message.cartUpdated"), "success");
+        return;
+      }
+      if (action === "remove-cart") {
+        removeCustomerCartItem(String(button.dataset.cartItemId || ""));
+        renderCustomerPortal();
+        setAlert(document.getElementById("customerCartAlert"), tt("message.cartItemRemoved"), "success");
+        return;
+      }
+      if (action === "submit-order") {
+        const order = submitCustomerOrder();
+        state.ui.currentCustomerPage = "customerOrdersPage";
+        renderCustomerPortal();
+        setAlert(document.getElementById("customerCartAlert"), tt("message.orderSubmitted", { orderNo: order.order_no }), "success");
+        return;
+      }
+      if (action === "download-invoice") {
+        const invoice = getInvoiceById(button.dataset.invoiceId);
+        const customer = getCurrentCustomer();
+        if (!invoice || invoice.customer_id !== customer?.id) {
+          throw new Error(tt("error.invoiceUnavailable"));
+        }
+        if (!canCustomerDownloadInvoice()) {
+          throw new Error(tt("error.customerCannotDownloadInvoice"));
+        }
+        downloadInvoicePdf(invoice.id, getCurrentOperator(), "CUSTOMER_DOWNLOAD_INVOICE");
+      }
+    } catch (error) {
+      setAlert(action === "add-to-cart" ? productAlert : cartAlert, error instanceof Error ? error.message : tt("error.operationFailed"), "danger");
+    }
   }
 
   function renderQuotePreview(preview, showStatus) {
@@ -3036,6 +6193,18 @@
       inner_carton_dimensions: String(dom.productInnerCartonDimensions?.value || "").trim(),
       units_per_carton: normalizeOptionalNumber(dom.productUnitsPerCarton?.value),
       carton_weight_kg: normalizeOptionalNumber(dom.productCartonWeight?.value),
+      category: normalizeProductCategory(exists?.category || dom.productSeries?.value || "PHONE"),
+      brand: exists?.brand || "OPPO",
+      image_url: exists?.image_url || "",
+      sales_status: exists?.sales_status || "ACTIVE",
+      is_sellable: Boolean(exists?.is_sellable ?? true),
+      default_warehouse: exists?.default_warehouse || "Vienna DC",
+      min_order_quantity: getProductMoq(exists) || 1,
+      carton_qty: Math.max(1, Math.floor(toNumber(exists?.carton_qty || dom.productUnitsPerCarton?.value, 1))),
+      available_for_portal: Boolean(exists?.available_for_portal ?? true),
+      short_description: exists?.short_description || "",
+      marketing_description: exists?.marketing_description || "",
+      product_image_url: exists?.product_image_url || exists?.image_url || "",
       default_msrp: roundMoney(dom.productDefaultMsrp?.value || 0),
       default_cost: roundMoney(dom.productDefaultCost?.value || 0),
       default_formula_id: String(dom.productFormulaId?.value || "").trim(),
@@ -3254,6 +6423,23 @@
       phone: String(dom.customerPhone?.value || "").trim(),
       email: String(dom.customerEmail?.value || "").trim(),
       address: String(dom.customerAddress?.value || "").trim(),
+      vat_id: exists?.vat_id || "",
+      company_no: exists?.company_no || generatedCode,
+      country: exists?.country || String(dom.customerRegion?.value || "").trim(),
+      billing_address: exists?.billing_address || String(dom.customerAddress?.value || "").trim(),
+      shipping_address: exists?.shipping_address || String(dom.customerAddress?.value || "").trim(),
+      payment_terms: exists?.payment_terms || "PREPAID",
+      credit_limit: roundMoney(exists?.credit_limit ?? 0),
+      credit_used: roundMoney(exists?.credit_used ?? 0),
+      portal_enabled: Boolean(exists?.portal_enabled ?? true),
+      sales_owner_id: exists?.sales_owner_id || "",
+      default_currency: exists?.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+      invoice_email: exists?.invoice_email || String(dom.customerEmail?.value || "").trim(),
+      delivery_contact_name: exists?.delivery_contact_name || String(dom.customerContactName?.value || "").trim(),
+      delivery_contact_phone: exists?.delivery_contact_phone || String(dom.customerPhone?.value || "").trim(),
+      delivery_address: exists?.delivery_address || String(dom.customerAddress?.value || "").trim(),
+      customer_status: exists?.customer_status || "ACTIVE",
+      reverse_charge_eligible: Boolean(exists?.reverse_charge_eligible),
       default_db_rate: toRateInput(dom.customerDbRate?.value, 0),
       default_customer_margin: toRateInput(dom.customerCustomerMargin?.value, 0),
       default_service_fee: toRateInput(dom.customerServiceFee?.value, 0),
@@ -3520,10 +6706,18 @@
   }
 
   function renderCustomerPagePresentation() {
-    const mode = getCustomerPageMode();
+    const focus = state.ui.customerFocus || "master";
+    const baseMode = getCustomerPageMode();
+    const mode = focus === "registration" ? "review" : baseMode;
     const canManageCustomer = canCreateCustomer();
     if (dom.customerPanelTitle) {
-      dom.customerPanelTitle.textContent = mode === "admin" ? tr("客户主数据管理") : mode === "review" ? tr("客户申请查看") : tr("客户申请");
+      const titleMap = {
+        master: tr("客户档案"),
+        registration: tr("客户注册审批"),
+        price: tr("价格政策"),
+        credit: tr("信用额度 / 账期"),
+      };
+      dom.customerPanelTitle.textContent = mode === "review" ? titleMap.registration : titleMap[focus] || (mode === "admin" ? tr("客户主数据管理") : tr("客户申请"));
     }
     if (dom.customerPageHint) {
       dom.customerPageHint.textContent =
@@ -3538,7 +6732,7 @@
               : tr("当前账号可查看客户申请记录，但没有新增或删除客户的权限。");
     }
     if (dom.customerTableTitle) {
-      dom.customerTableTitle.textContent = mode === "admin" ? tr("客户列表") : tr("客户申请记录");
+      dom.customerTableTitle.textContent = mode === "admin" ? tr(focus === "price" ? "客户价格政策列表" : focus === "credit" ? "客户信用与账期列表" : "客户列表") : tr("客户申请记录");
     }
     dom.customerRequestsWrap?.classList.toggle("role-hidden", mode === "admin");
     dom.customersMasterWrap?.classList.toggle("role-hidden", mode !== "admin");
@@ -3914,6 +7108,9 @@
     const userName = String(dom.accountUserName?.value || "").trim().toLowerCase();
     const displayName = String(dom.accountDisplayName?.value || "").trim();
     const role = String(dom.accountRole?.value || "SALES_ENTRY");
+    const accountType = CUSTOMER_ROLES.has(role) ? "CUSTOMER" : String(dom.accountType?.value || "INTERNAL").toUpperCase();
+    const linkedCustomerId = accountType === "CUSTOMER" ? String(dom.accountLinkedCustomerId?.value || "").trim() : "";
+    const portalEnabled = accountType === "CUSTOMER" ? String(dom.accountPortalEnabled?.value || "true") === "true" : false;
     const team = String(dom.accountTeam?.value || "").trim();
     const password = String(dom.accountPassword?.value || "");
     const permissions = collectAccountPermissionsFromForm(role);
@@ -3925,6 +7122,14 @@
     }
     if (!exists && !password) {
       setAlert(dom.accountFormAlert, tr("新账号必须设置初始密码。"), "danger");
+      return;
+    }
+    if (accountType === "CUSTOMER" && (!CUSTOMER_ROLES.has(role) || !linkedCustomerId)) {
+      setAlert(dom.accountFormAlert, tr("客户门户账号必须选择 CUSTOMER 角色并绑定已启用门户的客户。"), "danger");
+      return;
+    }
+    if (accountType === "INTERNAL" && CUSTOMER_ROLES.has(role)) {
+      setAlert(dom.accountFormAlert, tr("CUSTOMER 角色必须使用客户门户账号类型。"), "danger");
       return;
     }
     const duplicate = state.data.users.find((item) => item.id !== id && String(item.user_name || "").toLowerCase() === userName);
@@ -3947,6 +7152,9 @@
       user_name: userName,
       display_name: displayName,
       role,
+      account_type: accountType,
+      linked_customer_id: linkedCustomerId,
+      portal_enabled: portalEnabled,
       permissions,
       team,
       position: exists?.position || "",
@@ -3985,7 +7193,11 @@
 
   function onAccountRoleChange() {
     const role = String(dom.accountRole?.value || "SALES_ENTRY");
+    if (dom.accountType) {
+      dom.accountType.value = CUSTOMER_ROLES.has(role) ? "CUSTOMER" : "INTERNAL";
+    }
     setAccountPermissionInputs(buildDefaultPermissionsForRole(role));
+    syncAccountPortalFields();
   }
 
   function resetAccountForm() {
@@ -3995,6 +7207,13 @@
     if (dom.accountRole) {
       dom.accountRole.value = "SALES_ENTRY";
     }
+    if (dom.accountType) {
+      dom.accountType.value = "INTERNAL";
+    }
+    setInputValue(dom.accountLinkedCustomerId, "");
+    if (dom.accountPortalEnabled) {
+      dom.accountPortalEnabled.value = "true";
+    }
     setAccountPermissionInputs(buildDefaultPermissionsForRole("SALES_ENTRY"));
     setInputValue(dom.accountTeam, "");
     setInputValue(dom.accountPassword, "");
@@ -4002,6 +7221,27 @@
       dom.accountStatus.value = "ACTIVE";
     }
     setInputValue(dom.accountRemark, "");
+    syncAccountPortalFields();
+  }
+
+  function syncAccountPortalFields() {
+    const role = String(dom.accountRole?.value || "");
+    const accountType = CUSTOMER_ROLES.has(role) ? "CUSTOMER" : String(dom.accountType?.value || "INTERNAL").toUpperCase();
+    if (dom.accountType) {
+      dom.accountType.value = accountType;
+    }
+    const isCustomerAccount = accountType === "CUSTOMER";
+    if (dom.accountLinkedCustomerId) {
+      dom.accountLinkedCustomerId.disabled = !isCustomerAccount;
+    }
+    if (dom.accountPortalEnabled) {
+      dom.accountPortalEnabled.disabled = !isCustomerAccount;
+    }
+    [dom.accountPermCreateCustomer, dom.accountPermCreateProduct, dom.accountPermViewFob, dom.accountPermViewGrossMargin, dom.accountPermViewGrossProfit].forEach((input) => {
+      if (input && isCustomerAccount) {
+        input.checked = false;
+      }
+    });
   }
 
   function onAccountRequestsTableAction(event) {
@@ -4113,6 +7353,15 @@
     if (dom.accountRole) {
       dom.accountRole.value = account.role;
     }
+    if (dom.accountType) {
+      dom.accountType.value = account.account_type || (CUSTOMER_ROLES.has(account.role) ? "CUSTOMER" : "INTERNAL");
+    }
+    if (dom.accountLinkedCustomerId) {
+      dom.accountLinkedCustomerId.value = account.linked_customer_id || "";
+    }
+    if (dom.accountPortalEnabled) {
+      dom.accountPortalEnabled.value = String(Boolean(account.portal_enabled));
+    }
     setAccountPermissionInputs(normalizeUserPermissions(account.role, account.permissions));
     setInputValue(dom.accountTeam, account.team);
     setInputValue(dom.accountPassword, "");
@@ -4120,6 +7369,7 @@
       dom.accountStatus.value = "ACTIVE";
     }
     setInputValue(dom.accountRemark, account.remark || "");
+    syncAccountPortalFields();
     setAlert(dom.accountFormAlert, tt("alerts.accountLoaded", { userName: account.user_name }), "success");
   }
 
@@ -4130,6 +7380,10 @@
     if (dom.accountRole) {
       dom.accountRole.value = request.requested_role;
     }
+    if (dom.accountType) {
+      dom.accountType.value = CUSTOMER_ROLES.has(request.requested_role) ? "CUSTOMER" : "INTERNAL";
+    }
+    setInputValue(dom.accountLinkedCustomerId, "");
     setAccountPermissionInputs(buildDefaultPermissionsForRole(request.requested_role));
     setInputValue(dom.accountTeam, request.team);
     setInputValue(dom.accountPassword, "");
@@ -4137,6 +7391,7 @@
       dom.accountStatus.value = "ACTIVE";
     }
     setInputValue(dom.accountRemark, tt("remarks.fromAccountRequest", { requestNo: request.request_no }));
+    syncAccountPortalFields();
     setAlert(dom.accountFormAlert, tt("alerts.accountRequestLoaded", { requestNo: request.request_no }), "success");
   }
 
@@ -4159,6 +7414,9 @@
       user_name: request.requested_user_name,
       display_name: request.applicant_name,
       role: request.requested_role,
+      account_type: CUSTOMER_ROLES.has(request.requested_role) ? "CUSTOMER" : "INTERNAL",
+      linked_customer_id: "",
+      portal_enabled: false,
       permissions: buildDefaultPermissionsForRole(request.requested_role),
       team: request.team,
       position: "",
@@ -4239,7 +7497,7 @@
       setInputValue(dom.customerRequestId, "");
       loadCustomerIntoForm(customer, false);
       setAlert(dom.customerFormAlert, tt("alerts.customerMasterLoaded", { customerCode: customer.customer_code }), "success");
-      switchPage("customerPage");
+      switchPage("customerPage", { navKey: "customer-master", customerFocus: "master" });
       return;
     }
     if (isCustomerReferenced(customer.id)) {
@@ -4273,6 +7531,8 @@
       .map((row) => {
         const canProcess = row.scope === "quote"
           ? canCurrentOperatorProcessApproval(row.approval, operator)
+          : row.scope === "order"
+            ? canCurrentOperatorProcessApproval(row.approval, operator)
           : row.scope === "customer"
             ? canCurrentOperatorProcessCustomerRequest(row.request, operator)
             : canCurrentOperatorProcessAccountRequest(row.request, operator);
@@ -4355,7 +7615,7 @@
       }
       if (action === "view") {
         state.ui.activeCustomerRequestId = request.id;
-        switchPage("customerPage");
+        switchPage("customerPage", { navKey: "customer-registration", customerFocus: "registration" });
         loadCustomerRequestIntoForm(request, false);
         return;
       }
@@ -4383,6 +7643,31 @@
       }
       return;
     }
+    if (scope === "order") {
+      const approval = getApprovalById(button.dataset.approvalId);
+      const order = getOrderById(approval?.order_id);
+      if (!approval || !order) {
+        return;
+      }
+      if (action === "view") {
+        switchPage("orderPage");
+        setAlert(dom.orderAlert, `${order.order_no} / ${order.customer_name} / ${formatCurrencyAmount(order.total_amount, order.currency)}`, "success");
+        return;
+      }
+      if (!canCurrentOperatorProcessApproval(approval, getCurrentOperator())) {
+        setAlert(dom.approvalAlert, tr("当前账号不是该订单审批节点处理人。"), "warn");
+        return;
+      }
+      if (action === "approve") {
+        approveOrderApproval(approval, getCurrentOperator());
+      }
+      if (action === "reject") {
+        rejectOrderApproval(approval, getCurrentOperator());
+      }
+      persistData();
+      renderAll();
+      return;
+    }
     const approval = getApprovalById(button.dataset.approvalId);
     if (!approval) {
       return;
@@ -4406,6 +7691,48 @@
     processApproval(approval.id, action, getCurrentOperator(), "", false);
     persistData();
     renderAll();
+  }
+
+  function onOrdersTableAction(event) {
+    const button = closestDataButton(event, "orderAction");
+    if (!button) {
+      return;
+    }
+    const order = getOrderById(button.dataset.orderId);
+    if (!order) {
+      return;
+    }
+    const action = String(button.dataset.orderAction || "");
+    const approval = getApprovalByOrderId(order.id);
+    const operator = getCurrentOperator();
+    if (action === "view") {
+      const items = getOrderItems(order.id)
+        .map((item) => `${item.sku} x ${item.quantity} @ ${formatCurrencyAmount(item.unit_price_snapshot, order.currency)}`)
+        .join("\n");
+      window.alert(`${order.order_no}\n${order.customer_name}\n${renderPlainStatus(order.order_status)}\n\n${items}`);
+      return;
+    }
+    if (action === "generate-pi") {
+      handleGenerateInvoiceFromOrder(order.id, "PROFORMA_INVOICE");
+      return;
+    }
+    if (!approval || !canCurrentOperatorProcessApproval(approval, operator)) {
+      setAlert(dom.orderAlert, tr("当前账号不是该订单审批节点处理人。"), "warn");
+      return;
+    }
+    if (action === "approve") {
+      approveOrderApproval(approval, operator);
+      persistData();
+      renderAll();
+      setAlert(dom.orderAlert, tt("order.message.approved", { orderNo: order.order_no }), "success");
+      return;
+    }
+    if (action === "reject") {
+      rejectOrderApproval(approval, operator);
+      persistData();
+      renderAll();
+      setAlert(dom.orderAlert, tt("order.message.rejected", { orderNo: order.order_no }), "success");
+    }
   }
 
   function deleteApprovalDirtyRecord(scope, recordId, operator = getCurrentOperator()) {
@@ -4464,6 +7791,24 @@
       return;
     }
 
+    if (scope === "order") {
+      const approval = getApprovalById(recordId);
+      if (!approval) {
+        return;
+      }
+      const order = getOrderById(approval.order_id);
+      const target = order?.order_no || approval.approval_no;
+      const confirmed = window.confirm(tt("confirm.approvalDirtyDelete", { target }));
+      if (!confirmed) {
+        return;
+      }
+      removeItem(state.data.approvals, approval.id);
+      persistData();
+      renderAll();
+      setAlert(dom.approvalAlert, tt("alerts.approvalDirtyDeleted", { target }), "success");
+      return;
+    }
+
     if (scope === "account") {
       const request = getAccountRequestById(recordId);
       if (!request) {
@@ -4511,7 +7856,7 @@
   }
 
   function buildApprovalCenterRows(operator = getCurrentOperator()) {
-    const quoteRows = state.data.approvals.map((approval) => {
+    const quoteRows = state.data.approvals.filter((approval) => String(approval.scope || "quote") === "quote").map((approval) => {
       const quote = getQuoteById(approval.quote_id);
       return {
         id: approval.id,
@@ -4528,6 +7873,29 @@
         sensitiveAmount: renderProtectedMoney(quote?.cost_price || 0, CORE_PERMISSION_KEYS.VIEW_FOB),
         sensitiveRate: renderProtectedPercent(quote?.gross_margin || 0, CORE_PERMISSION_KEYS.VIEW_GROSS_MARGIN),
         policyOrWarning: renderBadge(quote?.warning_level || "NONE"),
+        initiatedBy: approval.initiated_by_name,
+        currentNode: tr(approval.current_node_name || "-"),
+        financeCc: "-",
+        approvalStatus: approval.approval_status,
+      };
+    });
+    const orderRows = state.data.approvals.filter((approval) => String(approval.scope || "") === "order").map((approval) => {
+      const order = getOrderById(approval.order_id);
+      return {
+        id: approval.id,
+        scope: "order",
+        updated_at: approval.updated_at,
+        approval,
+        request: null,
+        approvalNo: approval.approval_no,
+        approvalType: tr("订单审批"),
+        targetName: order?.customer_name || approval.customer_name || "-",
+        targetCode: order?.order_no || approval.order_no || "-",
+        summary: renderOrderItemSummary(order?.id || ""),
+        amount: formatCurrencyAmount(order?.total_amount || 0, order?.currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY),
+        sensitiveAmount: "-",
+        sensitiveRate: "-",
+        policyOrWarning: `<span class="hint">${escapeHtml(order?.payment_terms || "ORDER_APPROVAL")}</span>`,
         initiatedBy: approval.initiated_by_name,
         currentNode: tr(approval.current_node_name || "-"),
         financeCc: "-",
@@ -4562,7 +7930,7 @@
           approval: null,
           request: request,
           approvalNo: request.request_no,
-          approvalType: tr("申请账号"),
+          approvalType: tt("approval.type.accountRequest"),
           targetName: request.applicant_name,
           targetCode: request.requested_user_name,
           summary: request.reason || "-",
@@ -4576,7 +7944,7 @@
           approvalStatus: request.approval_status === "PENDING" ? "PENDING_APPROVAL" : request.approval_status,
         }))
       : [];
-    return quoteRows.concat(customerRows, accountRows).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
+    return quoteRows.concat(orderRows, customerRows, accountRows).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at), "zh-CN"));
   }
 
   function renderFinanceCcStatus(request) {
@@ -4667,6 +8035,28 @@
       customer_type: proposed.customer_type || "RETAIL",
       channel_type: proposed.channel_type || "OFFLINE",
       region: proposed.region || "",
+      country: proposed.country || proposed.region || "",
+      company_no: proposed.company_no || "",
+      vat_id: proposed.vat_id || "",
+      website: proposed.website || "",
+      contact_name: proposed.contact_name || "",
+      contact_title: proposed.contact_title || "",
+      phone: proposed.phone || "",
+      email: proposed.email || "",
+      address: proposed.address || "",
+      billing_address: proposed.billing_address || "",
+      shipping_address: proposed.shipping_address || proposed.delivery_address || "",
+      invoice_email: proposed.invoice_email || proposed.email || "",
+      delivery_contact_name: proposed.delivery_contact_name || "",
+      delivery_contact_phone: proposed.delivery_contact_phone || "",
+      delivery_address: proposed.delivery_address || proposed.shipping_address || "",
+      payment_terms: proposed.payment_terms || "NET 14",
+      credit_limit: toNumber(proposed.credit_limit, 0),
+      credit_used: toNumber(proposed.credit_used, 0),
+      portal_enabled: Boolean(proposed.portal_enabled),
+      customer_status: proposed.customer_status || "ACTIVE",
+      reverse_charge_eligible: Boolean(proposed.reverse_charge_eligible),
+      default_currency: proposed.default_currency || CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
       default_db_rate: toRateInput(proposed.default_db_rate, 0),
       default_customer_margin: toRateInput(proposed.default_customer_margin, 0),
       default_service_fee: toRateInput(proposed.default_service_fee, 0),
@@ -5551,6 +8941,15 @@
   }
 
   function buildDefaultPermissionsForRole(role) {
+    if (CUSTOMER_ROLES.has(String(role || "").toUpperCase())) {
+      return {
+        [CORE_PERMISSION_KEYS.CREATE_CUSTOMER]: false,
+        [CORE_PERMISSION_KEYS.CREATE_PRODUCT]: false,
+        [CORE_PERMISSION_KEYS.VIEW_FOB]: false,
+        [CORE_PERMISSION_KEYS.VIEW_GROSS_MARGIN]: false,
+        [CORE_PERMISSION_KEYS.VIEW_GROSS_PROFIT]: false,
+      };
+    }
     const isAdmin = ADMIN_ROLES.has(String(role || "").toUpperCase());
     if (isAdmin) {
       return {
@@ -5632,6 +9031,9 @@
   }
 
   function getAccessiblePages(role = getCurrentOperatorRole(), user = getCurrentOperator()) {
+    if (CUSTOMER_ROLES.has(String(role || "").toUpperCase()) || isCustomerOperator(user)) {
+      return [];
+    }
     const pages = new Set(PAGE_ACCESS_MAP[role] || PAGE_ACCESS_MAP.SALES_ENTRY);
     const permissions = normalizeUserPermissions(role, user?.permissions);
     if (permissions[CORE_PERMISSION_KEYS.CREATE_PRODUCT]) {
@@ -5697,6 +9099,10 @@
 
   function getApprovalByQuoteId(quoteId) {
     return state.data.approvals.find((item) => item.quote_id === quoteId) || null;
+  }
+
+  function getApprovalByOrderId(orderId) {
+    return state.data.approvals.find((item) => item.order_id === orderId || (item.scope === "order" && item.target_id === orderId)) || null;
   }
 
   function getCustomerRequestById(id) {
@@ -5886,6 +9292,23 @@
       phone: "",
       email: "",
       address: "",
+      vat_id: "",
+      company_no: String(row.company_no || row.customer_code || "").trim(),
+      country: String(row.country || row.region || "").trim(),
+      billing_address: "",
+      shipping_address: "",
+      payment_terms: "PREPAID",
+      credit_limit: 0,
+      credit_used: 0,
+      portal_enabled: false,
+      sales_owner_id: "",
+      default_currency: CUSTOMER_QUOTATION_DEFAULT_CURRENCY,
+      invoice_email: "",
+      delivery_contact_name: "",
+      delivery_contact_phone: "",
+      delivery_address: "",
+      customer_status: "DRAFT",
+      reverse_charge_eligible: false,
       default_db_rate: 0,
       default_customer_margin: 0,
       default_service_fee: 0,
@@ -5922,6 +9345,18 @@
       inner_carton_dimensions: String(row.inner_carton_dimensions || "").trim(),
       units_per_carton: normalizeOptionalNumber(row.units_per_carton),
       carton_weight_kg: normalizeOptionalNumber(row.carton_weight_kg),
+      category: normalizeProductCategory(row.category || row.product_series || "PHONE"),
+      brand: String(row.brand || "OPPO").trim(),
+      image_url: "",
+      sales_status: "ACTIVE",
+      is_sellable: true,
+      default_warehouse: "Vienna DC",
+      min_order_quantity: Math.max(1, Math.floor(toNumber(row.min_order_quantity, 1))),
+      carton_qty: Math.max(1, Math.floor(toNumber(row.carton_qty || row.units_per_carton, 1))),
+      available_for_portal: true,
+      short_description: "",
+      marketing_description: "",
+      product_image_url: "",
       default_msrp: roundMoney(row.rrp ?? row.msrp ?? 0),
       default_cost: roundMoney(row.cost_price || 0),
       default_formula_id: formulaId || getActiveFormulas()[0]?.id || "",
@@ -7343,6 +10778,27 @@
   function renderLogActionType(actionType) {
     const map = {
       CREATE_QUOTE: "创建报价",
+      VIEW_PRICE: "查看客户价格",
+      CREATE_QUOTATION: "创建报价快照",
+      LOCK_QUOTATION: "锁定报价快照",
+      CREATE_ORDER: "创建订单",
+      APPROVE_ORDER: "订单审批通过",
+      REJECT_ORDER: "订单审批驳回",
+      CREATE_INVOICE: "创建发票",
+      GENERATE_INVOICE_PDF: "生成发票 PDF",
+      DOWNLOAD_INVOICE: "下载发票",
+      CUSTOMER_DOWNLOAD_INVOICE: "客户下载发票",
+      SEND_INVOICE: "发送发票",
+      MARK_INVOICE_PAID: "标记发票付款",
+      CONFIRM_CREDIT_TERM: "确认账期",
+      CANCEL_INVOICE: "取消发票",
+      CREATE_CREDIT_NOTE: "创建 Credit Note",
+      CREATE_COMMERCIAL_INVOICE: "创建 Commercial Invoice",
+      UPDATE_CUSTOMER_BILLING_INFO: "更新客户开票信息",
+      UPDATE_INVOICE_SETTINGS: "更新发票设置",
+      LOCK_INVENTORY: "锁定库存",
+      RELEASE_INVENTORY: "释放库存",
+      CREATE_SHIPMENT: "创建发货指令",
       APPROVE: "审批通过",
       REJECT: "审批驳回",
       GENERATE_CUSTOMER_QUOTE_SHEET: "生成客户报价单",
@@ -7380,21 +10836,24 @@
   }
 
   function renderPlainStatus(status) {
-    const map = {
+    const upper = String(status || "").toUpperCase();
+    const mapped = tt(`status.${upper}`);
+    if (mapped && !isMissingI18n(mapped)) {
+      return mapped;
+    }
+    const fallbackMap = {
       NONE: tr("无预警"),
       YELLOW: tr("黄色预警"),
       RED: tr("红色预警"),
-      IN_PROGRESS: tr("审批中"),
-      APPROVED: tr("已批准"),
-      REJECTED: tr("已驳回"),
-      ACTIVE: tr("已生效"),
-      PENDING: tr("待审批"),
-      PENDING_APPROVAL: tr("待审批"),
+      IN_PROGRESS: tt("status.IN_APPROVAL"),
       PENDING_EFFECTIVE: tr("待生效"),
       REJECTED_PENDING_EDIT: tr("驳回待修改"),
-      INACTIVE: tr("已删除"),
+      COMMERCIAL_GENERATED: tr("正式发票已生成"),
+      LOCKED: tr("已锁定"),
+      CONVERTED_TO_ORDER: tr("已转订单"),
+      UNPAID: tr("未付款"),
     };
-    return map[String(status || "").toUpperCase()] || String(status || "-");
+    return fallbackMap[upper] || String(status || "-");
   }
 
   function renderWarningText(level) {
@@ -7402,14 +10861,9 @@
   }
 
   function renderRoleLabel(role) {
-    const labels = {
-      SALES_ENTRY: tr("客户经理"),
-      SALES_MANAGER: tr("电商负责人"),
-      BUSINESS_HEAD: tr("总经理"),
-      FINANCE_HEAD: tr("财务总监"),
-      SYSTEM_ADMIN: tr("超级管理员"),
-    };
-    return labels[role] || role;
+    const normalized = String(role || "").toUpperCase();
+    const translated = tt(`role.${normalized}`);
+    return isMissingI18n(translated) ? role : translated;
   }
 
   function formatMoney(value) {
@@ -7517,6 +10971,11 @@
   function getCurrentMonthValue() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function getTodayValue() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   }
 
   function normalizeMonthValue(value) {

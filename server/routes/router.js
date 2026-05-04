@@ -3,6 +3,9 @@ const { customersRepo, productsRepo, formulasRepo, usersRepo } = require("../rep
 const quoteService = require("../services/quote-service");
 const approvalService = require("../services/approval-service");
 const importService = require("../services/import-service");
+const pricingEngine = require("../services/pricing-engine-service");
+const orderService = require("../services/order-service");
+const invoiceService = require("../services/invoice-service");
 const { calculateQuote } = require("../services/quote-calculate-service");
 const { buildId } = require("../services/id-service");
 const { writeLog, listLogs } = require("../services/log-service");
@@ -397,12 +400,126 @@ function createRouter() {
     );
   });
 
+  register("GET", "/api/pricing/customer-price", async (request, response) => {
+    const { searchParams } = parseRequestUrl(request.url);
+    try {
+      sendJson(
+        response,
+        200,
+        pricingEngine.getCustomerPrice(
+          normalizeText(searchParams.get("customer_id")),
+          normalizeText(searchParams.get("product_id") || searchParams.get("sku")),
+          toNumber(searchParams.get("quantity"), 1)
+        )
+      );
+    } catch (error) {
+      sendJson(response, 400, { message: error instanceof Error ? error.message : "客户价格计算失败。" });
+    }
+  });
+
+  register("GET", "/api/customer/products", async (request, response) => {
+    try {
+      const operatorId = request.headers["x-operator-id"] || "";
+      sendJson(response, 200, { items: orderService.listPortalProducts(String(operatorId)) });
+    } catch (error) {
+      sendJson(response, 403, { message: error instanceof Error ? error.message : "无权访问客户产品。" });
+    }
+  });
+
+  register("POST", "/api/customer/orders", async (request, response, _context, body) => {
+    try {
+      const operatorId = request.headers["x-operator-id"] || body.operatorId || "";
+      sendJson(response, 201, orderService.createOrderFromCart({ operatorId: String(operatorId), items: body.items || [] }));
+    } catch (error) {
+      sendJson(response, 400, { message: error instanceof Error ? error.message : "订单提交失败。" });
+    }
+  });
+
+  register("GET", "/api/orders", async (request, response) => {
+    const { searchParams } = parseRequestUrl(request.url);
+    sendJson(response, 200, { items: orderService.listOrders(Object.fromEntries(searchParams.entries())) });
+  });
+
+  register("GET", "/api/inventory", async (_request, response) => {
+    sendJson(response, 200, { items: require("../repositories").inventoryRepo.list() });
+  });
+
+  register("GET", "/api/invoice-settings", async (_request, response) => {
+    sendJson(response, 200, invoiceService.getSettings());
+  });
+
+  register("GET", "/api/invoices", async (request, response) => {
+    const { searchParams } = parseRequestUrl(request.url);
+    const query = Object.fromEntries(searchParams.entries());
+    const operatorId = request.headers["x-operator-id"];
+    if (operatorId) {
+      const operator = getOperator(request);
+      if (operator.account_type === "CUSTOMER" || String(operator.role || "").startsWith("CUSTOMER_")) {
+        query.customer_id = operator.linked_customer_id || "__NO_CUSTOMER__";
+      }
+    }
+    sendJson(response, 200, { items: invoiceService.listInvoices(query) });
+  });
+
+  register("POST", "/api/invoices", async (request, response, _context, body) => {
+    try {
+      sendJson(
+        response,
+        201,
+        invoiceService.createInvoice({
+          orderId: normalizeText(body.order_id),
+          invoiceType: normalizeText(body.invoice_type || "PROFORMA_INVOICE"),
+          operatorId: getOperator(request, body).id,
+          reverseChargeApplied: body.reverse_charge_applied,
+        })
+      );
+    } catch (error) {
+      sendJson(response, 400, { message: error instanceof Error ? error.message : "发票生成失败。" });
+    }
+  });
+
+  register("POST", "/api/invoices/:id/payment-status", async (request, response, context, body) => {
+    try {
+      sendJson(
+        response,
+        200,
+        invoiceService.updatePaymentStatus({
+          invoiceId: context.params.id,
+          paymentStatus: normalizeText(body.payment_status),
+          operatorId: getOperator(request, body).id,
+        })
+      );
+    } catch (error) {
+      sendJson(response, 400, { message: error instanceof Error ? error.message : "付款状态更新失败。" });
+    }
+  });
+
+  register("POST", "/api/invoices/:id/cancel", async (request, response, context, body) => {
+    try {
+      sendJson(
+        response,
+        200,
+        invoiceService.cancelInvoice({
+          invoiceId: context.params.id,
+          reason: normalizeText(body.reason),
+          operatorId: getOperator(request, body).id,
+        })
+      );
+    } catch (error) {
+      sendJson(response, 400, { message: error instanceof Error ? error.message : "发票取消失败。" });
+    }
+  });
+
   register("GET", "/api/approvals", async (request, response) => {
     const { searchParams } = parseRequestUrl(request.url);
-    const approvals = approvalService.listApprovals().map((item) => ({
-      ...item,
-      quote_detail: quoteService.getQuoteDetail(item.quote_id),
-    }));
+    const approvals = approvalService.listApprovals().map((item) => {
+      const scope = item.scope || (item.order_id ? "order" : "quote");
+      return {
+        ...item,
+        scope,
+        quote_detail: scope === "quote" && item.quote_id ? quoteService.getQuoteDetail(item.quote_id) : null,
+      };
+    });
     const filtered = approvals.filter((item) => {
       return (
         (!searchParams.get("approval_status") || item.approval_status === searchParams.get("approval_status")) &&
@@ -414,6 +531,20 @@ function createRouter() {
 
   register("POST", "/api/approvals/:id/approve", async (request, response, context, body) => {
     try {
+      const approval = require("../repositories").approvalsRepo.getById(context.params.id);
+      if (approval?.scope === "order") {
+        sendJson(
+          response,
+          200,
+          orderService.processOrderApproval({
+            approvalId: context.params.id,
+            operatorId: getOperator(request, body).id,
+            action: "approve",
+            comment: normalizeText(body.comment),
+          })
+        );
+        return;
+      }
       sendJson(
         response,
         200,
@@ -430,6 +561,20 @@ function createRouter() {
 
   register("POST", "/api/approvals/:id/reject", async (request, response, context, body) => {
     try {
+      const approval = require("../repositories").approvalsRepo.getById(context.params.id);
+      if (approval?.scope === "order") {
+        sendJson(
+          response,
+          200,
+          orderService.processOrderApproval({
+            approvalId: context.params.id,
+            operatorId: getOperator(request, body).id,
+            action: "reject",
+            comment: normalizeText(body.comment),
+          })
+        );
+        return;
+      }
       sendJson(
         response,
         200,

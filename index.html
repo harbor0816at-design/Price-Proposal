@@ -9,7 +9,7 @@
   <body>
     <div id="loginShell" class="login-shell">
       <div class="language-switch language-switch-login">
-        <span class="hint">界面语言</span>
+        <span class="hint" data-i18n="portal.language">界面语言</span>
         <div class="language-group">
           <button class="btn language-btn" type="button" data-language="zh">中文</button>
           <button class="btn language-btn" type="button" data-language="en">English</button>
@@ -18,31 +18,75 @@
       </div>
       <div class="login-layout">
         <section class="login-panel">
-          <p class="eyebrow login-eyebrow">Account Login</p>
-          <h1>账号登录</h1>
-          <p class="hint">不同账号登录后，将自动进入对应的权限范围。</p>
+          <p class="eyebrow login-eyebrow" data-i18n="portal.admin">B2B管理后台</p>
+          <h1 data-i18n="portal.pricingCenter">价格与报价中台</h1>
+          <p class="hint" data-i18n="auth.loginHint">不同账号登录后，将自动进入对应的权限范围。</p>
           <form id="loginForm" class="grid-form">
-            <label>登录账号<input id="loginUserName" autocomplete="username" /></label>
-            <label>登录密码<input id="loginPassword" type="password" autocomplete="current-password" /></label>
+            <label><span data-i18n="auth.loginUser">登录账号</span><input id="loginUserName" autocomplete="username" /></label>
+            <label><span data-i18n="auth.loginPassword">登录密码</span><input id="loginPassword" type="password" autocomplete="current-password" /></label>
           </form>
           <div class="toolbar">
-            <button class="btn btn-primary" id="loginBtn" type="button">登录系统</button>
+            <button class="btn btn-primary" id="loginBtn" type="button" data-i18n="auth.signIn">登录系统</button>
           </div>
           <div id="loginAlert"></div>
         </section>
 
-        <section class="login-panel">
-          <p class="eyebrow login-eyebrow">Account Request</p>
-          <h2>申请账号</h2>
-          <form id="accountRequestForm" class="grid-form">
-            <label>申请人姓名<input id="requestDisplayName" /></label>
-            <label>申请账号<input id="requestUserName" /></label>
-            <label>申请密码<input id="requestPassword" type="password" autocomplete="new-password" /></label>
-            <label>所属团队<input id="requestTeam" /></label>
-            <label class="full">申请原因<input id="requestReason" /></label>
+        <section class="login-panel partner-registration-panel">
+          <p class="eyebrow login-eyebrow" data-i18n="customer.registration.eyebrow">Partner Registration</p>
+          <h2 data-i18n="customer.registration.title">B2B合作伙伴注册</h2>
+          <p class="hint registration-intro" data-i18n="customer.registration.intro">申请成为Rfriend Services GmbH / OPPO Austria授权B2B合作伙伴。提交后，我们的销售与财务团队将审核您的公司信息、VAT资料、合作意向和信用条件。审核通过后，您将获得B2B客户门户账号，用于查看专属价格、可销售库存、订单、发票和发货状态。</p>
+          <p class="hint" data-i18n="customer.registration.requiredHint">带 * 的字段为必填项。</p>
+          <form id="accountRequestForm" class="grid-form registration-form">
+            <fieldset class="registration-step">
+              <legend><span>1</span><strong data-i18n="customer.registration.steps.company">公司信息</strong></legend>
+              <p class="hint" data-i18n="customer.registration.descriptions.company">请填写法人主体与商业类型，用于客户主档和VAT审核。</p>
+              <label><span data-i18n="customer.registration.fields.companyName">公司名称 *</span><input id="requestCompanyName" autocomplete="organization" /></label>
+              <label><span data-i18n="customer.registration.fields.countryRegion">国家 / 地区 *</span><input id="requestCountryRegion" /></label>
+              <label><span data-i18n="customer.registration.fields.companyNo">公司注册号 *</span><input id="requestCompanyNo" /></label>
+              <label><span data-i18n="customer.registration.fields.vatId">VAT ID *</span><input id="requestVatId" /></label>
+              <label><span data-i18n="customer.registration.fields.website">公司网站</span><input id="requestWebsite" type="url" /></label>
+              <label><span data-i18n="customer.registration.fields.businessType">业务类型 *</span><input id="requestBusinessType" /></label>
+              <label><span data-i18n="customer.registration.fields.channelType">渠道类型 *</span><input id="requestChannelType" /></label>
+            </fieldset>
+            <fieldset class="registration-step">
+              <legend><span>2</span><strong data-i18n="customer.registration.steps.billing">开票与收货信息</strong></legend>
+              <p class="hint" data-i18n="customer.registration.descriptions.billing">这些信息将用于报价、Proforma Invoice、Commercial Invoice 和发货指令。</p>
+              <label class="full"><span data-i18n="customer.registration.fields.registeredAddress">注册地址 *</span><input id="requestRegisteredAddress" /></label>
+              <label class="full"><span data-i18n="customer.registration.fields.billingAddress">开票地址 *</span><input id="requestBillingAddress" /></label>
+              <label class="full"><span data-i18n="customer.registration.fields.shippingAddress">收货地址 *</span><input id="requestShippingAddress" /></label>
+              <label><span data-i18n="customer.registration.fields.invoiceEmail">发票邮箱 *</span><input id="requestInvoiceEmail" type="email" /></label>
+              <label><span data-i18n="customer.registration.fields.deliveryContactName">收货联系人 *</span><input id="requestDeliveryContactName" /></label>
+              <label><span data-i18n="customer.registration.fields.deliveryContactPhone">收货联系电话 *</span><input id="requestDeliveryContactPhone" /></label>
+            </fieldset>
+            <fieldset class="registration-step">
+              <legend><span>3</span><strong data-i18n="customer.registration.steps.contact">联系人信息</strong></legend>
+              <p class="hint" data-i18n="customer.registration.descriptions.contact">我们会通过以下联系人完成开户注册和后续商务沟通。</p>
+              <label><span data-i18n="customer.registration.fields.contactName">联系人姓名 *</span><input id="requestContactName" autocomplete="name" /></label>
+              <label><span data-i18n="customer.registration.fields.jobTitle">职位</span><input id="requestJobTitle" /></label>
+              <label><span data-i18n="customer.registration.fields.email">邮箱 *</span><input id="requestEmail" type="email" autocomplete="email" /></label>
+              <label><span data-i18n="customer.registration.fields.phone">电话 *</span><input id="requestPhone" autocomplete="tel" /></label>
+              <label><span data-i18n="customer.registration.fields.preferredLanguage">首选语言</span><select id="requestPreferredLanguage"><option value="zh">中文</option><option value="en">English</option><option value="de">Deutsch</option></select></label>
+            </fieldset>
+            <fieldset class="registration-step">
+              <legend><span>4</span><strong data-i18n="customer.registration.steps.intention">合作意向</strong></legend>
+              <p class="hint" data-i18n="customer.registration.descriptions.intention">帮助销售团队判断合作范围、价格政策和信用条件。</p>
+              <label><span data-i18n="customer.registration.fields.productCategories">感兴趣的产品类别 *</span><input id="requestProductCategories" /></label>
+              <label><span data-i18n="customer.registration.fields.monthlyVolume">预计月采购量 *</span><input id="requestMonthlyVolume" /></label>
+              <label><span data-i18n="customer.registration.fields.targetSalesChannel">目标销售渠道 *</span><input id="requestTargetSalesChannel" /></label>
+              <label><span data-i18n="customer.registration.fields.existingCooperation">是否已有OPPO合作</span><input id="requestExistingCooperation" /></label>
+              <label class="full"><span data-i18n="customer.registration.fields.applicationReason">申请原因 *</span><textarea id="requestReason"></textarea></label>
+            </fieldset>
+            <fieldset class="registration-step">
+              <legend><span>5</span><strong data-i18n="customer.registration.steps.documents">文件与确认</strong></legend>
+              <p class="hint" data-i18n="customer.registration.descriptions.documents">可先填写文件名称或链接，正式审核时销售团队会跟进原件。</p>
+              <label><span data-i18n="customer.registration.fields.businessLicense">营业执照 / 公司注册文件</span><input id="requestBusinessLicense" /></label>
+              <label><span data-i18n="customer.registration.fields.vatCertificate">VAT证书</span><input id="requestVatCertificate" /></label>
+              <label class="full"><span data-i18n="customer.registration.fields.additionalDocuments">其他文件</span><input id="requestAdditionalDocuments" /></label>
+              <label class="checkbox-line registration-confirmation full"><input id="requestConfirmation" type="checkbox" /> <span data-i18n="customer.registration.confirmation">我确认以上信息真实有效，并同意 Rfriend Services GmbH 使用这些信息进行B2B合作伙伴审核。</span></label>
+            </fieldset>
           </form>
           <div class="toolbar">
-            <button class="btn btn-primary" id="submitAccountRequestBtn" type="button">提交账号申请</button>
+            <button class="btn btn-primary" id="submitAccountRequestBtn" type="button" data-i18n="customer.registration.submit">提交合作伙伴申请</button>
           </div>
           <div id="accountRequestAlert"></div>
         </section>
@@ -51,47 +95,153 @@
 
     <div id="appShell" class="app-shell role-hidden">
       <aside class="sidebar">
-        <div class="brand">
-          <p class="eyebrow">Mobile / CE</p>
-          <h1>客户报价管理系统</h1>
+        <div class="sidebar-header">
+          <div class="portal-chip" data-i18n="portal.admin">B2B管理后台</div>
+          <h1 data-i18n="portal.pricingCenter">价格与报价中台</h1>
         </div>
-        <nav class="nav-list">
-          <button class="nav-item" data-page-target="quoteQueryPage">报价查询</button>
-          <button class="nav-item active" data-page-target="quoteCreatePage">报价生成</button>
-          <button class="nav-item" data-page-target="importPage">批量导入</button>
-          <button class="nav-item" data-page-target="formulaPage">公式管理</button>
-          <button class="nav-item" data-page-target="productPage">产品管理</button>
-          <button class="nav-item" data-page-target="customerPage">客户管理</button>
-          <button class="nav-item" data-page-target="approvalPage">审批中心</button>
-          <button class="nav-item" data-page-target="accountPage">账号管理</button>
-          <button class="nav-item" data-page-target="logPage">操作日志</button>
+        <nav class="sidebar-nav nav-list admin-nav" id="adminNav">
+          <section class="nav-group" data-nav-group="workbench">
+            <button class="nav-group-toggle menu-group-title" type="button" data-nav-group-toggle="workbench" aria-expanded="true">
+              <span data-i18n="menu.workspace.title">管理工作台</span>
+              <span class="nav-chevron">⌄</span>
+            </button>
+            <div class="nav-sublist">
+              <button class="nav-item active" data-i18n="menu.workspace.overview" data-page-target="dashboardPage" data-nav-key="dashboard-overview" data-dashboard-focus="overview">业务总览</button>
+              <button class="nav-item" data-i18n="menu.workspace.tasks" data-page-target="dashboardPage" data-nav-key="dashboard-todo" data-dashboard-focus="todo">我的待办</button>
+              <button class="nav-item" data-i18n="menu.workspace.risks" data-page-target="dashboardPage" data-nav-key="dashboard-risk" data-dashboard-focus="risk">风险提醒</button>
+            </div>
+          </section>
+
+          <section class="nav-group is-collapsed" data-nav-group="trade">
+            <button class="nav-group-toggle menu-group-title" type="button" data-nav-group-toggle="trade" aria-expanded="false">
+              <span data-i18n="menu.trade.title">交易管理</span>
+              <span class="nav-chevron">›</span>
+            </button>
+            <div class="nav-sublist">
+              <button class="nav-item" data-i18n="menu.trade.quoteManagement" data-page-target="quoteQueryPage" data-page-aliases="quoteCreatePage" data-nav-key="quote-management">报价管理</button>
+              <button class="nav-item" data-i18n="menu.trade.orderManagement" data-page-target="orderPage" data-nav-key="order-management">订单管理</button>
+              <button class="nav-item" data-i18n="menu.trade.approvalManagement" data-page-target="approvalPage" data-nav-key="approval-management">审批管理</button>
+              <button class="nav-item" data-i18n="menu.trade.invoiceManagement" data-page-target="invoicePage" data-nav-key="invoice-management">发票管理</button>
+              <button class="nav-item" data-i18n="menu.trade.shipmentManagement" data-page-target="shipmentPage" data-nav-key="shipment-management">发货管理</button>
+            </div>
+          </section>
+
+          <section class="nav-group is-collapsed" data-nav-group="customer">
+            <button class="nav-group-toggle menu-group-title" type="button" data-nav-group-toggle="customer" aria-expanded="false">
+              <span data-i18n="menu.customer.title">客户管理</span>
+              <span class="nav-chevron">›</span>
+            </button>
+            <div class="nav-sublist">
+              <button class="nav-item" data-i18n="menu.customer.profiles" data-page-target="customerPage" data-nav-key="customer-master" data-customer-focus="master">客户档案</button>
+              <button class="nav-item" data-i18n="menu.customer.registrationReview" data-page-target="customerPage" data-nav-key="customer-registration" data-customer-focus="registration">客户注册审批</button>
+              <button class="nav-item" data-i18n="menu.customer.accounts" data-page-target="accountPage" data-nav-key="customer-accounts">客户账号</button>
+              <button class="nav-item" data-i18n="menu.customer.pricingPolicies" data-page-target="customerPage" data-nav-key="customer-price-policy" data-customer-focus="price">价格政策</button>
+              <button class="nav-item" data-i18n="menu.customer.creditTerms" data-page-target="customerPage" data-nav-key="customer-credit" data-customer-focus="credit">信用额度 / 账期</button>
+            </div>
+          </section>
+
+          <section class="nav-group is-collapsed" data-nav-group="stock">
+            <button class="nav-group-toggle menu-group-title" type="button" data-nav-group-toggle="stock" aria-expanded="false">
+              <span data-i18n="menu.inventory.title">商品与库存</span>
+              <span class="nav-chevron">›</span>
+            </button>
+            <div class="nav-sublist">
+              <button class="nav-item" data-i18n="menu.inventory.catalog" data-page-target="productPage" data-nav-key="product-master">商品档案</button>
+              <button class="nav-item" data-i18n="menu.inventory.inventoryManagement" data-page-target="inventoryPage" data-nav-key="inventory-management" data-inventory-focus="stock">库存管理</button>
+              <button class="nav-item" data-i18n="menu.inventory.inventoryLocks" data-page-target="inventoryPage" data-nav-key="inventory-locks" data-inventory-focus="locks">库存锁定</button>
+              <button class="nav-item" data-i18n="menu.inventory.lowStockAlerts" data-page-target="inventoryPage" data-nav-key="inventory-low-stock" data-inventory-focus="low-stock">低库存预警</button>
+            </div>
+          </section>
+
+          <section class="nav-group is-collapsed" data-nav-group="config">
+            <button class="nav-group-toggle menu-group-title" type="button" data-nav-group-toggle="config" aria-expanded="false">
+              <span data-i18n="menu.system.title">系统配置</span>
+              <span class="nav-chevron">›</span>
+            </button>
+            <div class="nav-sublist">
+              <button class="nav-item" data-i18n="menu.system.formulaManagement" data-page-target="formulaPage" data-nav-key="formula-config">公式管理</button>
+              <button class="nav-item" data-i18n="menu.system.batchImport" data-page-target="importPage" data-nav-key="batch-import">批量导入</button>
+              <button class="nav-item" data-i18n="menu.system.companyInvoiceSettings" data-page-target="invoicePage" data-nav-key="company-invoice-settings">公司与发票设置</button>
+              <button class="nav-item" data-i18n="menu.system.permissionManagement" data-page-target="accountPage" data-nav-key="account-config">权限管理</button>
+              <button class="nav-item" data-i18n="menu.system.operationLogs" data-page-target="logPage" data-nav-key="operation-logs">操作日志</button>
+            </div>
+          </section>
         </nav>
+        <div class="sidebar-footer">
+          <div class="sidebar-account-card account-chip">
+            <span class="hint" data-i18n="portal.signedInAccount">当前登录账号</span>
+            <strong id="currentAccountName">未登录</strong>
+            <span id="currentAccountMeta" class="hint">请先登录</span>
+          </div>
+          <div class="sidebar-footer-actions">
+            <button class="btn" id="logoutBtn" type="button" data-i18n="portal.signOut">退出登录</button>
+            <button class="btn" id="refreshAllBtn" type="button" data-i18n="portal.refreshData">刷新数据</button>
+          </div>
+        </div>
       </aside>
 
       <main class="main">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Quote Workflow</p>
+            <p class="eyebrow" data-i18n="portal.admin">B2B管理后台</p>
             <h2 id="pageTitle">报价生成</h2>
           </div>
           <div class="topbar-tools">
             <div class="language-switch">
-              <span class="hint">界面语言</span>
+              <span class="hint" data-i18n="portal.language">界面语言</span>
               <div class="language-group">
                 <button class="btn language-btn" type="button" data-language="zh">中文</button>
                 <button class="btn language-btn" type="button" data-language="en">English</button>
                 <button class="btn language-btn" type="button" data-language="de">Deutsch</button>
               </div>
             </div>
-            <div class="account-chip">
-              <span class="hint">当前登录账号</span>
-              <strong id="currentAccountName">未登录</strong>
-              <span id="currentAccountMeta" class="hint">请先登录</span>
-            </div>
-            <button class="btn" id="logoutBtn" type="button">退出登录</button>
-            <button class="btn" id="refreshAllBtn" type="button">刷新数据</button>
           </div>
         </header>
+
+        <section id="dashboardPage" class="page-section">
+          <div class="panel dashboard-focus-panel" data-dashboard-section="overview">
+            <div class="panel-head">
+              <div>
+                <h3 data-i18n="dashboard.title">业务总览</h3>
+                <span id="adminDashboardRoleHint" class="hint">按当前角色汇总最需要处理的交易事项</span>
+              </div>
+              <div id="dashboardQuickActions" class="panel-head-actions"></div>
+            </div>
+            <div id="adminDashboardCards" class="summary-grid"></div>
+            <div id="dashboardTradePipeline" class="dashboard-pipeline"></div>
+          </div>
+
+          <div class="panel dashboard-focus-panel" data-dashboard-section="todo">
+            <div class="panel-head">
+              <h3 data-i18n="dashboard.cards.myTasks">我的待办</h3>
+              <span id="dashboardTodoSummary" class="hint">优先处理会阻塞交易链路的事项</span>
+            </div>
+            <div id="dashboardTodoList" class="workbench-list"></div>
+            <div class="table-wrap">
+              <table id="dashboardOrdersTable">
+                <thead>
+                  <tr>
+                    <th data-i18n="order.table.orderNo">订单号</th>
+                    <th data-i18n="order.table.customer">客户</th>
+                    <th data-i18n="order.table.amount">金额</th>
+                    <th data-i18n="order.table.orderStatus">订单状态</th>
+                    <th data-i18n="order.table.approvalStatus">审批状态</th>
+                    <th data-i18n="order.table.createdAt">创建时间</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel dashboard-focus-panel" data-dashboard-section="risk">
+            <div class="panel-head">
+              <h3 data-i18n="menu.workspace.risks">风险提醒</h3>
+              <span id="dashboardRiskSummary" class="hint">库存、付款、发票、客户资料异常</span>
+            </div>
+            <div id="dashboardRiskList" class="workbench-list"></div>
+          </div>
+        </section>
 
         <section id="quoteQueryPage" class="page-section">
           <div class="panel">
@@ -193,6 +343,162 @@
                   <tbody></tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="orderPage" class="page-section">
+          <div class="panel">
+            <div class="panel-head">
+              <h3 data-i18n="order.centerTitle">订单中心</h3>
+              <span id="ordersSummary" class="hint"></span>
+            </div>
+            <div id="orderAlert"></div>
+            <div class="table-wrap">
+              <table id="ordersTable">
+                <thead>
+                  <tr>
+                    <th data-i18n="order.table.orderNo">订单号</th>
+                    <th data-i18n="order.table.customer">客户</th>
+                    <th data-i18n="order.table.skuSummary">SKU摘要</th>
+                    <th data-i18n="order.table.amount">金额</th>
+                    <th data-i18n="order.table.orderStatus">订单状态</th>
+                    <th data-i18n="order.table.approvalStatus">审批状态</th>
+                    <th data-i18n="order.table.invoiceStatus">发票状态</th>
+                    <th data-i18n="order.table.shipmentStatus">发货状态</th>
+                    <th data-i18n="order.table.createdAt">创建时间</th>
+                    <th data-i18n="order.table.actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="inventoryPage" class="page-section">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>库存中心</h3>
+              <span class="hint">客户前台只读取可销售库存，内部可查看锁定结构</span>
+            </div>
+            <div class="table-wrap">
+              <table id="inventoryTable">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>产品</th>
+                    <th>仓库</th>
+                    <th>总库存</th>
+                    <th>可销售库存</th>
+                    <th>临时锁定</th>
+                    <th>正式锁定</th>
+                    <th>安全库存</th>
+                    <th>更新时间</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="invoicePage" class="page-section">
+          <div class="panel">
+            <div class="panel-head">
+              <h3 data-i18n="invoice.title">发票中心</h3>
+              <span class="hint" data-i18n="invoice.hint">发票必须基于已审批订单和锁价快照生成</span>
+            </div>
+            <form id="invoiceFilterForm" class="grid-form">
+              <label><span data-i18n="invoice.table.invoiceNo">Invoice No.</span><input id="invoiceFilterNo" /></label>
+              <label><span data-i18n="invoice.table.orderNo">Order No.</span><input id="invoiceFilterOrderNo" /></label>
+              <label><span data-i18n="invoice.table.customer">Customer</span><input id="invoiceFilterCustomerName" /></label>
+              <label><span data-i18n="invoice.table.invoiceType">Invoice Type</span><select id="invoiceFilterType"></select></label>
+              <label><span data-i18n="invoice.table.invoiceStatus">Invoice Status</span><select id="invoiceFilterStatus"></select></label>
+              <label><span data-i18n="invoice.table.paymentStatus">Payment Status</span><select id="invoiceFilterPaymentStatus"></select></label>
+              <label><span data-i18n="form.dateFrom">Date From</span><input id="invoiceFilterDateFrom" type="date" /></label>
+              <label><span data-i18n="form.dateTo">Date To</span><input id="invoiceFilterDateTo" type="date" /></label>
+            </form>
+            <div class="toolbar">
+              <button class="btn btn-primary" id="queryInvoicesBtn" type="button" data-i18n="action.queryInvoices">查询发票</button>
+              <button class="btn" id="resetInvoiceFiltersBtn" type="button" data-i18n="action.resetFilters">重置筛选</button>
+            </div>
+            <div id="invoiceAlert"></div>
+            <div class="table-wrap">
+              <table id="invoicesTable">
+                <thead>
+                  <tr>
+                    <th data-i18n="invoice.table.invoiceNo">Invoice No.</th>
+                    <th data-i18n="invoice.table.orderNo">Order No.</th>
+                    <th data-i18n="invoice.table.customer">Customer</th>
+                    <th data-i18n="invoice.table.invoiceType">Invoice Type</th>
+                    <th data-i18n="invoice.table.subtotalNet">Subtotal Net</th>
+                    <th data-i18n="invoice.table.vat">VAT</th>
+                    <th data-i18n="invoice.table.totalGross">Total Gross</th>
+                    <th data-i18n="invoice.table.currency">Currency</th>
+                    <th data-i18n="invoice.table.invoiceStatus">Invoice Status</th>
+                    <th data-i18n="invoice.table.paymentStatus">Payment Status</th>
+                    <th data-i18n="invoice.table.dateOfIssue">Date of Issue</th>
+                    <th data-i18n="invoice.table.dueDate">Due Date</th>
+                    <th data-i18n="order.table.actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 data-i18n="invoice.readyOrdersTitle">待生成 Proforma Invoice 的订单</h3>
+              <span class="hint" data-i18n="invoice.readyOrdersHint">订单审批通过且报价快照已锁定后可生成 PI</span>
+            </div>
+            <div class="table-wrap">
+              <table id="invoiceReadyOrdersTable">
+                <thead>
+                  <tr>
+                    <th data-i18n="order.table.orderNo">Order No.</th>
+                    <th data-i18n="order.table.customer">Customer</th>
+                    <th data-i18n="order.table.total">Total</th>
+                    <th data-i18n="invoice.table.currency">Currency</th>
+                    <th data-i18n="invoice.table.invoiceStatus">Invoice Status</th>
+                    <th data-i18n="order.table.actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3 data-i18n="invoice.detailTitle">发票详情</h3>
+              <span id="invoiceDetailHint" class="hint" data-i18n="invoice.detailHint">点击查看卖方、客户、明细、金额、付款信息和备注。</span>
+            </div>
+            <div id="invoiceDetailContent" class="detail-placeholder">暂无发票详情</div>
+          </div>
+        </section>
+
+        <section id="shipmentPage" class="page-section">
+          <div class="panel">
+            <div class="panel-head">
+              <h3 data-i18n="shipment.title">发货中心</h3>
+              <span class="hint" data-i18n="shipment.hint">付款或账期确认后可生成发货指令并跟踪物流。</span>
+            </div>
+            <div class="table-wrap">
+              <table id="shipmentsTable">
+                <thead>
+                  <tr>
+                    <th data-i18n="shipment.table.shipmentNo">发货单号</th>
+                    <th data-i18n="order.table.orderNo">订单号</th>
+                    <th data-i18n="order.table.customer">客户</th>
+                    <th data-i18n="shipment.table.warehouse">仓库</th>
+                    <th data-i18n="shipment.table.carrier">物流公司</th>
+                    <th data-i18n="shipment.table.trackingNo">Tracking No.</th>
+                    <th data-i18n="order.table.status">状态</th>
+                    <th data-i18n="shipment.table.updatedAt">更新时间</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -510,9 +816,25 @@
                     <option value="BUSINESS_HEAD">总经理</option>
                     <option value="FINANCE_HEAD">财务总监</option>
                     <option value="SYSTEM_ADMIN">超级管理员</option>
+                    <option value="CUSTOMER_ADMIN">客户公司管理员</option>
+                    <option value="CUSTOMER_BUYER">客户采购人员</option>
+                    <option value="CUSTOMER_VIEWER">客户只读账号</option>
                   </select>
                 </label>
                 <label>所属团队<input id="accountTeam" /></label>
+                <label>账号类型
+                  <select id="accountType">
+                    <option value="INTERNAL">内部账号</option>
+                    <option value="CUSTOMER">客户门户账号</option>
+                  </select>
+                </label>
+                <label>绑定客户<select id="accountLinkedCustomerId"></select></label>
+                <label>门户启用
+                  <select id="accountPortalEnabled">
+                    <option value="true">启用</option>
+                    <option value="false">停用</option>
+                  </select>
+                </label>
                 <label>登录密码<input id="accountPassword" type="password" autocomplete="new-password" /></label>
                 <label>账号状态
                   <select id="accountStatus">
@@ -629,6 +951,41 @@
             </div>
           </div>
         </section>
+      </main>
+    </div>
+
+    <div id="customerPortalShell" class="customer-portal-shell role-hidden">
+      <header class="customer-topbar">
+        <div>
+          <p class="eyebrow">OPPO Austria Partner Portal</p>
+          <h1 data-i18n="portal.customerTitle">B2B合作伙伴订购门户</h1>
+        </div>
+        <div class="customer-topbar-tools">
+          <div id="customerAccountChip" class="account-chip"></div>
+          <button class="btn" id="customerLogoutBtn" type="button" data-i18n="portal.signOut">退出登录</button>
+        </div>
+      </header>
+
+      <aside class="customer-sidebar">
+        <nav class="nav-list">
+          <button class="nav-item active" data-i18n="portal.customerMenu.dashboard" data-customer-page-target="customerDashboardPage">首页</button>
+          <button class="nav-item" data-i18n="portal.customerMenu.products" data-customer-page-target="customerProductsPage">产品</button>
+          <button class="nav-item" data-i18n="portal.customerMenu.cart" data-customer-page-target="customerCartPage">购物车</button>
+          <button class="nav-item" data-i18n="portal.customerMenu.orders" data-customer-page-target="customerOrdersPage">我的订单</button>
+          <button class="nav-item" data-i18n="portal.customerMenu.invoices" data-customer-page-target="customerInvoicesPage">我的发票</button>
+          <button class="nav-item" data-i18n="portal.customerMenu.shipments" data-customer-page-target="customerShipmentsPage">发货状态</button>
+          <button class="nav-item" data-i18n="portal.customerMenu.account" data-customer-page-target="customerAccountPage">账户</button>
+        </nav>
+      </aside>
+
+      <main class="customer-main">
+        <section id="customerDashboardPage" class="customer-page-section active"></section>
+        <section id="customerProductsPage" class="customer-page-section"></section>
+        <section id="customerCartPage" class="customer-page-section"></section>
+        <section id="customerOrdersPage" class="customer-page-section"></section>
+        <section id="customerInvoicesPage" class="customer-page-section"></section>
+        <section id="customerShipmentsPage" class="customer-page-section"></section>
+        <section id="customerAccountPage" class="customer-page-section"></section>
       </main>
     </div>
 
